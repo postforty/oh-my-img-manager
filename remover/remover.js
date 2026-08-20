@@ -311,6 +311,9 @@ async function loadImageFile(file, customName) {
       c.height = height;
     });
 
+    canvasTransformLayer.style.width = `${width}px`;
+    canvasTransformLayer.style.height = `${height}px`;
+
     const origCtx = originalCanvas.getContext("2d", { willReadFrequently: true });
     origCtx.drawImage(image, 0, 0);
 
