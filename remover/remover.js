@@ -73,6 +73,7 @@ const btnRunAi = document.getElementById("btnRunAi");
 const aiProgressWrap = document.getElementById("aiProgressWrap");
 const aiProgressBarFill = document.getElementById("aiProgressBarFill");
 const aiStatusText = document.getElementById("aiStatusText");
+const aiBackendBadge = document.getElementById("aiBackendBadge");
 
 // Color Key Elements
 const btnEyedropper = document.getElementById("btnEyedropper");
@@ -177,9 +178,18 @@ function setupAIWorker() {
 }
 
 function handleWorkerMessage(e) {
-  const { type, progress, file, maskBuffer, width, height, error } = e.data;
+  const { type, progress, file, maskBuffer, width, height, error, backend } = e.data;
 
-  if (type === "INITIATE") {
+  if (type === "BACKEND_INFO") {
+    aiBackendBadge.classList.remove("hidden", "badge-webgpu", "badge-wasm");
+    if (backend === "webgpu") {
+      aiBackendBadge.classList.add("badge-webgpu");
+      aiBackendBadge.textContent = "⚡ WebGPU 가속";
+    } else {
+      aiBackendBadge.classList.add("badge-wasm");
+      aiBackendBadge.textContent = "🖥️ WASM 모드";
+    }
+  } else if (type === "INITIATE") {
     aiProgressWrap.classList.remove("hidden");
     aiStatusText.textContent = `AI 모델 다운로드 준비 중... (${file || "model"})`;
   } else if (type === "PROGRESS") {
