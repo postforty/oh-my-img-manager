@@ -2,7 +2,7 @@
    Oh My Image Manager Remover - Modern Dark/Light Design System
 ------------------------------------------------------------- */
 :root {
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-family: Inter, system-ui, sans-serif;
   
   /* Dark Theme Palette (Default) */
   --bg-primary: #0f1117;
@@ -17,18 +17,19 @@
   --text-secondary: #a0aec0;
   --text-muted: #718096;
   
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
+  --accent-primary: #1089c7;
+  --accent-primary-hover: #0e77ad;
   
   --accent-danger: #ef4444;
-  --accent-success: #10b981;
-  --accent-warning: #f59e0b;
+  --accent-success: #78a95a;
+  --accent-warning: #efd430;
   
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   
   --checker-bg-1: #1e2029;
   --checker-bg-2: #282a36;
@@ -44,11 +45,12 @@ body.light-theme {
   --border-subtle: #edf2f7;
   
   --text-primary: #0f172a;
-  --text-secondary: #475569;
+  --text-secondary: #64748b;
   --text-muted: #94a3b8;
   
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   
   --checker-bg-1: #e2e8f0;
   --checker-bg-2: #ffffff;
@@ -217,16 +219,16 @@ body {
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 12px;
-  background: var(--text-primary);
-  color: var(--bg-primary);
+  background: var(--accent-warning);
+  color: #0f172a;
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
 .badge-webgpu {
-  background: var(--text-primary);
-  color: var(--bg-primary);
+  background: var(--accent-primary);
+  color: #ffffff;
 }
 
 .badge-wasm {
@@ -325,41 +327,41 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .btn-primary {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--accent-primary);
+  color: #ffffff;
   font-weight: 500;
 }
 .btn-primary:not(:disabled):hover {
-  opacity: 0.8;
+  background: var(--accent-primary-hover);
 }
 
 .btn-magic {
-  background: var(--text-primary);
-  color: var(--bg-primary);
+  background: var(--accent-primary);
+  color: #ffffff;
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 .btn-magic:not(:disabled):hover {
-  opacity: 0.9;
+  background: var(--accent-primary-hover);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary);
-  border-color: var(--border-color);
-  color: var(--text-primary);
+  background: var(--accent-success);
+  border-color: var(--accent-success);
+  color: #ffffff;
 }
 .btn-secondary:not(:disabled):hover {
-  background: var(--bg-hover);
+  background: #658F4C;
 }
 
 .btn-outline {
   background: transparent;
-  border-color: var(--border-color);
-  color: var(--text-secondary);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 .btn-outline:not(:disabled):hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: #f0f9ff;
+  color: var(--accent-primary);
 }
 
 .btn-ghost {

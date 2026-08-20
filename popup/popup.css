@@ -6,10 +6,11 @@ body.dark-theme {
   --border-color: #334155;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --accent-blue: #3b82f6;
-  --accent-blue-hover: #2563eb;
+  --accent-blue: #1089c7;
+  --accent-blue-hover: #0e77ad;
   --btn-outline-bg: rgba(30, 41, 59, 0.6);
   --radius-md: 8px;
+  --radius-btn: 6px;
 }
 
 body.light-theme {
@@ -19,10 +20,11 @@ body.light-theme {
   --border-color: #e2e8f0;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
+  --accent-blue: #1089c7;
+  --accent-blue-hover: #0e77ad;
   --btn-outline-bg: #f8fafc;
   --radius-md: 8px;
+  --radius-btn: 6px;
 }
 
 * {
@@ -33,7 +35,7 @@ body.light-theme {
 
 body {
   width: 330px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: Inter, system-ui, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   padding: 14px;
@@ -115,7 +117,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-btn);
   border: 1px solid transparent;
   cursor: pointer;
   text-align: left;
@@ -124,38 +126,43 @@ body {
 }
 
 .btn-magic {
-  background-color: var(--text-main);
-  color: var(--bg-dark);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  background-color: var(--accent-blue);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-magic:hover {
-  opacity: 0.9;
+  background-color: var(--accent-blue-hover);
 }
 
 .btn-magic .btn-text small {
-  color: var(--bg-dark);
+  color: #ffffff;
   opacity: 0.8;
 }
 
 .btn-primary {
-  background-color: var(--bg-card-hover);
-  color: var(--text-main);
+  background-color: #78a95a;
+  color: #ffffff;
 }
 
 .btn-primary:hover {
+  background-color: #658f4c;
+}
+
+.btn-primary .btn-text small {
+  color: #ffffff;
   opacity: 0.8;
 }
 
 .btn-outline {
   background-color: transparent;
-  border-color: var(--border-color);
-  color: var(--text-main);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
 }
 
 .btn-outline:hover {
-  background-color: var(--bg-card-hover);
-  border-color: var(--border-color);
+  background-color: #f0f9ff;
+  border-color: var(--accent-blue);
 }
 
 .btn-icon {

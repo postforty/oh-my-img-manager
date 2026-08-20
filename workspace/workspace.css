@@ -8,10 +8,10 @@ body.dark-theme {
   --border-color: #334155;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --accent-blue: #3b82f6;
-  --accent-blue-hover: #2563eb;
+  --accent-blue: #1089c7;
+  --accent-blue-hover: #0e77ad;
   --accent-red: #ef4444;
-  --accent-green: #10b981;
+  --accent-green: #78a95a;
   --preset-bg: rgba(15, 23, 42, 0.6);
   --dropzone-bg: rgba(30, 41, 59, 0.3);
   --dropzone-drag-bg: rgba(59, 130, 246, 0.08);
@@ -30,10 +30,10 @@ body.light-theme {
   --border-color: #e2e8f0;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
+  --accent-blue: #1089c7;
+  --accent-blue-hover: #0e77ad;
   --accent-red: #ef4444;
-  --accent-green: #10b981;
+  --accent-green: #78a95a;
   --preset-bg: #f8fafc;
   --dropzone-bg: rgba(241, 245, 249, 0.8);
   --dropzone-drag-bg: rgba(37, 99, 235, 0.08);
@@ -69,7 +69,7 @@ body.light-theme .theme-moon-icon {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: Inter, system-ui, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   height: 100vh;
