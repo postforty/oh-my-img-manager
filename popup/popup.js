@@ -42,33 +42,28 @@ document.getElementById("btnCaptureCurrentTab").addEventListener("click", async 
   }
 
   try {
-    // 1. Capture current visible tab
-    chrome.tabs.captureVisibleTab(null, { format: "png" }, async (dataUrl) => {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
       if (!dataUrl) {
         alert("화면을 캡처할 수 없습니다. 웹페이지 탭에서 시도해 주세요.");
         return;
       }
 
-      // 2. Load into image & crop using eBook ratio (Top: 17.1%, Bottom: 86.2%)
-      const img = new Image();
-      img.onload = async () => {
-        const ratios = { left: 0.0, top: 0.171, right: 1.0, bottom: 0.862 };
-        const { blob } = await CropperEngine.cropToBlob(img, ratios, "image/jpeg", 0.95);
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const filename = `ebook_capture_${timestamp}.jpg`;
-        const blobUrl = URL.createObjectURL(blob);
-
-        if (chrome.downloads && chrome.downloads.download) {
-          chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
-        } else {
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = filename;
-          a.click();
-        }
-      };
-      img.src = dataUrl;
+      chrome.storage.local.set({ oh_my_img_full_screen: dataUrl }, () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs.length === 0) return;
+          chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            files: ["popup/selection-overlay.js"]
+          }, () => {
+            if (chrome.runtime.lastError) {
+              alert("현재 페이지에는 캡처 기능을 사용할 수 없습니다. 일반 웹페이지에서 시도해주세요.");
+              console.error(chrome.runtime.lastError.message);
+            } else {
+              window.close();
+            }
+          });
+        });
+      });
     });
   } catch (err) {
     console.error("Tab capture error:", err);

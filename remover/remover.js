@@ -129,6 +129,30 @@ function init() {
   setupBgFillControls();
   setupActionButtons();
   setupShortcuts();
+  checkPendingCapture();
+}
+
+// -------------------------------------------------------------
+// Pending Capture Check
+// -------------------------------------------------------------
+function checkPendingCapture() {
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(["oh_my_img_capture"], async (result) => {
+      if (result.oh_my_img_capture) {
+        const dataUrl = result.oh_my_img_capture;
+        chrome.storage.local.remove("oh_my_img_capture");
+
+        try {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], "captured_area.png", { type: "image/png" });
+          loadImageFile(file);
+        } catch (err) {
+          console.error("Failed to load captured image", err);
+        }
+      }
+    });
+  }
 }
 
 // -------------------------------------------------------------
