@@ -1,9 +1,0 @@
-564: <a href="#overview">🌟 주요 기능</a>
-565: <a href="#remover">🪄 AI 누끼 스튜디오</a>
-566: <a href="#cropper">✂️ 일괄 크롭 워크스페이스</a>
-567: <a href="#capture">📸 웹 탭 캡처</a>
-568: <a href="#shortcuts">⌨️ 단축키 안내</a>
-569: <a href="#privacy">🔒 프라이버시 & 보안</a>
-636: <strong>🤖 온디바이스 SOTA AI 모델 (RMBG-1.4) 탑재</strong>
-689: <strong>⚡ 대량 처리 워크플로우</strong>
-765: <strong>🛡️ 완벽한 데이터 보안</strong>
