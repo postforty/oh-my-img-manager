@@ -24,6 +24,17 @@ document.getElementById("btnOpenWorkspace").addEventListener("click", () => {
   }
 });
 
+const btnOpenGuide = document.getElementById("btnOpenGuide");
+if (btnOpenGuide) {
+  btnOpenGuide.addEventListener("click", () => {
+    if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+      chrome.tabs.create({ url: chrome.runtime.getURL("guide.html") });
+    } else {
+      window.open("../guide.html", "_blank");
+    }
+  });
+}
+
 document.getElementById("btnCaptureCurrentTab").addEventListener("click", async () => {
   if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.captureVisibleTab) {
     alert("크롬 브라우저 환경에서만 탭 캡처가 가능합니다.");

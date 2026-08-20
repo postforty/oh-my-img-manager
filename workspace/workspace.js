@@ -1,5 +1,6 @@
 /**
- * Oh My Img Cropper - Workspace Controller
+ * Oh My Image Manager - Workspace Controller
+ * Bulk image cropping with dual preview engine and ZIP export.
  */
 
 // Application State
@@ -206,7 +207,12 @@ function renderQueue() {
     div.innerHTML = `
       <img src="${item.thumbUrl}" alt="thumb" />
       <span class="queue-badge">${idx + 1}</span>
-      <button class="queue-remove-btn" title="목록에서 제거 (삭제)">✕</button>
+      <button class="queue-remove-btn" title="목록에서 제거 (삭제)">
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     `;
 
     // Click thumbnail to select
@@ -405,13 +411,11 @@ function setupActionButtons() {
   }
 
   document.getElementById("btnHeaderHelp").addEventListener("click", () => {
-    alert(
-      "【Oh My Img Cropper 워크스페이스 사용법】\n\n" +
-      "1. 이미지를 화면에 드래그 앤 드롭하세요.\n" +
-      "2. 좌측 프리셋 또는 슬라이더로 상/하/좌/우 크롭 영역을 조절하세요.\n" +
-      "3. '영역 표시 가이드'와 '크롭 결과물' 탭으로 자를 영역을 확인하세요.\n" +
-      "4. [일괄 크롭 & ZIP 다운로드]를 누르면 모든 이미지가 압축 파일로 일괄 저장됩니다."
-    );
+    if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+      chrome.tabs.create({ url: chrome.runtime.getURL("guide.html#cropper") });
+    } else {
+      window.open("../guide.html#cropper", "_blank");
+    }
   });
 }
 

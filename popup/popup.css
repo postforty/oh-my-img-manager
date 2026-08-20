@@ -69,9 +69,34 @@ body {
   border-radius: 6px;
 }
 
+.header-info {
+  flex: 1;
+}
+
 .header-info h3 {
   font-size: 15px;
   font-weight: 700;
+}
+
+.btn-guide-icon {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-guide-icon:hover {
+  color: var(--text-main);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-blue);
 }
 
 .header-info p {

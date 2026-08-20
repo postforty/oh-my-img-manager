@@ -1,5 +1,6 @@
 /**
- * Oh My Img Remover - Studio Controller
+ * Oh My Image Manager - Studio Controller
+ * AI On-Device background removal, color keying, and brush retouching.
  */
 
 // Application State
@@ -184,10 +185,22 @@ function handleWorkerMessage(e) {
     aiBackendBadge.classList.remove("hidden", "badge-webgpu", "badge-wasm");
     if (backend === "webgpu") {
       aiBackendBadge.classList.add("badge-webgpu");
-      aiBackendBadge.textContent = "⚡ WebGPU 가속";
+      aiBackendBadge.innerHTML = `
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>WebGPU 가속</span>
+      `;
     } else {
       aiBackendBadge.classList.add("badge-wasm");
-      aiBackendBadge.textContent = "🖥️ WASM 모드";
+      aiBackendBadge.innerHTML = `
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        <span>WASM 모드</span>
+      `;
     }
   } else if (type === "INITIATE") {
     aiProgressWrap.classList.remove("hidden");
@@ -214,7 +227,7 @@ function handleWorkerMessage(e) {
       aiProgressWrap.classList.add("hidden");
       state.ai.isProcessing = false;
       btnRunAi.disabled = false;
-      showToast("✨ AI 배경 제거가 완료되었습니다!");
+      showToast("AI 배경 제거가 완료되었습니다!", "success");
     }, 400);
   } else if (type === "ERROR") {
     aiProgressWrap.classList.add("hidden");
@@ -260,7 +273,7 @@ function setupClipboardPaste() {
         const file = item.getAsFile();
         if (file) {
           loadImageFile(file, "clipboard_image.png");
-          showToast("📋 클립보드 이미지를 불러왔습니다!");
+          showToast("클립보드 이미지를 불러왔습니다!", "info");
           break;
         }
       }
@@ -615,7 +628,7 @@ function pickColorAt(x, y) {
   state.colorKey.eyedropperActive = false;
   btnEyedropper.classList.remove("active");
   canvasStage.classList.remove("eyedropper-active");
-  showToast(`🎯 배경색이 지정되었습니다: ${hex}`);
+  showToast(`배경색이 지정되었습니다: ${hex}`, "info");
 }
 
 function setupColorKeyControls() {
@@ -653,7 +666,7 @@ function setupColorKeyControls() {
     historyManager.pushState(mainCanvas);
     updateUndoRedoButtons();
     updateCanvasDisplay();
-    showToast("⚡ 선택 색상 투명화가 적용되었습니다!");
+    showToast("선택 색상 투명화가 적용되었습니다!", "success");
   });
 }
 
@@ -785,7 +798,7 @@ function setupActionButtons() {
       const outputFilename = `${baseName}_transparent.png`;
 
       downloadBlob(blob, outputFilename);
-      showToast("🎉 투명 PNG 다운로드가 완료되었습니다!");
+      showToast("투명 PNG 다운로드가 완료되었습니다!", "success");
     } catch (err) {
       console.error("Export failed:", err);
       alert("다운로드 중 오류가 발생했습니다.");
@@ -798,10 +811,10 @@ function setupActionButtons() {
     try {
       const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, state.bgFill);
       await RemoverEngine.copyToClipboard(exportCanvas);
-      showToast("📋 투명 이미지가 클립보드에 복사되었습니다!");
+      showToast("투명 이미지가 클립보드에 복사되었습니다!", "success");
     } catch (err) {
       console.error("Clipboard copy failed:", err);
-      showToast("클립보드 복사 실패: " + err.message);
+      showToast("클립보드 복사 실패: " + err.message, "info");
     }
   });
 
@@ -824,14 +837,11 @@ function setupActionButtons() {
   });
 
   btnHelp.addEventListener("click", () => {
-    alert(
-      "【Oh My Img 스마트 누끼 스튜디오 사용법】\n\n" +
-        "1. 드래그 앤 드롭 또는 [Ctrl + V]로 이미지를 불러옵니다.\n" +
-        "2. [🤖 원클릭 AI 배경 제거]를 누르면 사람/사물 외 배경이 자동 분리됩니다.\n" +
-        "3. 흰색/단색 배경은 [⚡ 스포이드 지우개]로 즉시 투명화할 수 있습니다.\n" +
-        "4. [🖌️ 지우개 / 복원 펜]으로 덜 지워진 부분을 섬세하게 다듬을 수 있습니다.\n" +
-        "5. [Ctrl + C]로 클립보드에 복사하거나 [투명 PNG 다운로드]로 저장하세요!"
-    );
+    if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+      chrome.tabs.create({ url: chrome.runtime.getURL("guide.html#remover") });
+    } else {
+      window.open("../guide.html#remover", "_blank");
+    }
   });
 }
 
@@ -877,8 +887,20 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-function showToast(message) {
-  toastMessage.textContent = message;
+function showToast(message, type = "info") {
+  const iconSvg =
+    type === "success"
+      ? `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+           <polyline points="22 4 12 14.01 9 11.01"></polyline>
+         </svg>`
+      : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           <circle cx="12" cy="12" r="10"></circle>
+           <line x1="12" y1="16" x2="12" y2="12"></line>
+           <line x1="12" y1="8" x2="12.01" y2="8"></line>
+         </svg>`;
+
+  toastMessage.innerHTML = `${iconSvg}<span>${message}</span>`;
   toastMessage.classList.remove("hidden");
   setTimeout(() => {
     toastMessage.classList.add("hidden");
