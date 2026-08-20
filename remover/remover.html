@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oh My Img Remover - 스마트 배경 제거(누끼) 스튜디오</title>
+  <link rel="stylesheet" href="remover.css" />
+</head>
+<body class="dark-theme">
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon-wrap" title="Oh My Img Studio">
+          <img src="../icons/icon48.png" alt="Oh My Img" class="logo-img" />
+        </div>
+        <div class="logo-text">
+          <h1>Oh My Img <span class="sub-title">누끼 스튜디오</span></h1>
+          <span class="badge">AI On-Device</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="file-summary" id="imageDimensions">이미지를 불러와 주세요</span>
+        <button id="btnOpenCropper" class="btn btn-outline btn-small" title="대량 일괄 크롭 워크스페이스로 이동">
+          <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            <path d="M9 3v18"></path>
+          </svg>
+          <span>일괄 크롭기</span>
+        </button>
+        <button id="btnThemeToggle" class="btn btn-icon" title="테마 변경 (다크/라이트 모드)">
+          <svg class="theme-sun-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-moon-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button id="btnHelp" class="btn btn-icon" title="도움말">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="studio-main">
+      <!-- Left Sidebar: Controls -->
+      <aside class="sidebar-panel" id="sidebarPanel">
+        <!-- 1. AI Smart Removal Section -->
+        <section class="control-section highlight-section">
+          <div class="section-header-wrap">
+            <h2 class="section-title">
+              <svg class="title-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+              </svg>
+              <span>🤖 AI 스마트 누끼</span>
+            </h2>
+            <span class="mini-pill">추천</span>
+          </div>
+          <div class="form-row">
+            <label for="selectAiModel">AI 모델:</label>
+            <select id="selectAiModel" class="select-box">
+              <option value="briaai/RMBG-1.4" selected>RMBG-1.4 (초고화질 SOTA)</option>
+              <option value="Xenova/modnet">MODNet (경량 인물 특화)</option>
+            </select>
+          </div>
+          <button id="btnRunAi" class="btn btn-magic btn-block" disabled>
+            <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>원클릭 AI 배경 제거</span>
+          </button>
+          <!-- AI Progress Bar -->
+          <div class="ai-progress-wrap hidden" id="aiProgressWrap">
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="aiProgressBarFill" style="width: 0%;"></div>
+            </div>
+            <div class="ai-status-text" id="aiStatusText">AI 모델 준비 중...</div>
+          </div>
+        </section>
+
+        <!-- 2. Solid Color / Magic Wand Section -->
+        <section class="control-section">
+          <h2 class="section-title">
+            <svg class="title-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 4V2"></path>
+              <path d="M15 16v-2"></path>
+              <path d="M8 9h2"></path>
+              <path d="M20 9h2"></path>
+              <path d="M17.8 11.8 19 13"></path>
+              <path d="M15 9h.01"></path>
+              <path d="M17.8 6.2 19 5"></path>
+              <path d="m3 21 9-9"></path>
+              <path d="M12.2 6.2 11 5"></path>
+            </svg>
+            <span>⚡ 단색 / 스포이드 지우개</span>
+          </h2>
+          <div class="color-picker-row">
+            <button id="btnEyedropper" class="btn btn-outline btn-small" disabled title="이미지에서 제거할 배경색을 클릭하세요">
+              <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m2 22 1-1h3l9-9"></path>
+                <path d="M14 6l4 4"></path>
+                <path d="m18 2 4 4-2 2-4-4Z"></path>
+              </svg>
+              <span>스포이드 선택</span>
+            </button>
+            <div class="picked-color-display">
+              <div class="color-preview-box" id="colorPreviewBox" style="background-color: #ffffff;"></div>
+              <span class="color-hex-text" id="colorHexText">#FFFFFF</span>
+            </div>
+          </div>
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>허용 오차 (Tolerance)</span>
+              <span class="slider-value" id="valTolerance">30</span>
+            </div>
+            <input type="range" id="rangeTolerance" min="1" max="120" step="1" value="30" />
+          </div>
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>가장자리 부드럽게 (Feather)</span>
+              <span class="slider-value" id="valFeather">2px</span>
+            </div>
+            <input type="range" id="rangeFeather" min="0" max="15" step="1" value="2" />
+          </div>
+          <button id="btnApplyColorKey" class="btn btn-secondary btn-block" disabled>
+            <span>선택 색상 투명화 적용</span>
+          </button>
+        </section>
+
+        <!-- 3. Manual Retouch Brush Section -->
+        <section class="control-section">
+          <h2 class="section-title">
+            <svg class="title-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path>
+              <path d="M7.07 14.94l-3.8 3.8a1 1 0 0 0 0 1.41l2.4 2.4a1 1 0 0 0 1.4 0l3.8-3.8"></path>
+            </svg>
+            <span>🖌️ 수동 리터칭 브러시</span>
+          </h2>
+          <div class="brush-mode-group">
+            <button class="btn btn-segment active" id="btnBrushErase" data-mode="erase">
+              <span>🗑️ 지우개</span>
+            </button>
+            <button class="btn btn-segment" id="btnBrushRestore" data-mode="restore">
+              <span>🩹 복원 펜</span>
+            </button>
+          </div>
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>브러시 크기</span>
+              <span class="slider-value" id="valBrushSize">30px</span>
+            </div>
+            <input type="range" id="rangeBrushSize" min="5" max="150" step="1" value="30" />
+          </div>
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>경계 부드러움</span>
+              <span class="slider-value" id="valBrushHardness">50%</span>
+            </div>
+            <input type="range" id="rangeBrushHardness" min="0" max="100" step="5" value="50" />
+          </div>
+        </section>
+
+        <!-- 4. Background Fill Option -->
+        <section class="control-section">
+          <h2 class="section-title">
+            <svg class="title-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="m4.93 4.93 4.24 4.24"></path>
+              <path d="m14.83 9.17 4.24-4.24"></path>
+              <path d="m14.83 14.83 4.24 4.24"></path>
+              <path d="m9.17 14.83-4.24 4.24"></path>
+            </svg>
+            <span>배경 채우기</span>
+          </h2>
+          <div class="bg-fill-grid">
+            <button class="bg-fill-btn active" data-bg="transparent" title="투명 배경">
+              <span class="checker-icon"></span>
+              <span>투명</span>
+            </button>
+            <button class="bg-fill-btn" data-bg="#ffffff" title="흰색 배경">
+              <span class="color-chip" style="background:#ffffff;"></span>
+              <span>화이트</span>
+            </button>
+            <button class="bg-fill-btn" data-bg="#000000" title="검은색 배경">
+              <span class="color-chip" style="background:#000000;"></span>
+              <span>블랙</span>
+            </button>
+            <label class="bg-fill-btn custom-color-label" title="커스텀 색상 선택">
+              <input type="color" id="inputCustomBg" value="#3b82f6" />
+              <span>컬러</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 5. History & Export Actions -->
+        <section class="action-section">
+          <div class="history-actions">
+            <button id="btnUndo" class="btn btn-icon-text" disabled title="실행 취소 (Ctrl+Z)">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7v6h6"></path>
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+              </svg>
+              <span>되돌리기</span>
+            </button>
+            <button id="btnRedo" class="btn btn-icon-text" disabled title="다시 실행 (Ctrl+Y)">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 7v6h-6"></path>
+                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
+              </svg>
+              <span>다시하기</span>
+            </button>
+          </div>
+          <button id="btnDownloadPng" class="btn btn-primary btn-large" disabled>
+            <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>투명 PNG 다운로드</span>
+          </button>
+          <button id="btnCopyClipboard" class="btn btn-secondary" disabled>
+            <svg class="btn-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>클립보드로 복사 (Ctrl+C)</span>
+          </button>
+          <button id="btnResetImage" class="btn btn-ghost" disabled>
+            <span>🔄 새 이미지 열기</span>
+          </button>
+        </section>
+      </aside>
+
+      <!-- Center / Viewport Panel -->
+      <section class="viewport-panel">
+        <!-- Dropzone (Shown when no image) -->
+        <div id="dropZone" class="drop-zone">
+          <div class="drop-icon">
+            <svg class="drop-icon-svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </div>
+          <h3>편집할 이미지를 이곳으로 드래그 앤 드롭하세요</h3>
+          <p>또는 언제든 <strong>Ctrl + V</strong>를 눌러 클립보드 이미지를 즉시 붙여넣을 수 있습니다</p>
+          <div class="drop-actions">
+            <label class="btn btn-primary file-btn">
+              <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>파일 선택하기</span>
+              <input type="file" id="fileInput" accept="image/*" />
+            </label>
+          </div>
+          <div class="drop-hint-tags">
+            <span class="hint-tag">💡 Ctrl + V 클립보드 붙여넣기</span>
+            <span class="hint-tag">⚡ 100% 로컬 프라이버시</span>
+            <span class="hint-tag">🤖 SOTA AI 누끼</span>
+          </div>
+        </div>
+
+        <!-- Canvas Workspace View (Shown when image loaded) -->
+        <div id="editorWorkspace" class="editor-workspace hidden">
+          <!-- Viewport Header Toolbar -->
+          <div class="viewport-toolbar">
+            <div class="view-mode-tabs">
+              <button class="tab-btn active" id="tabResultView">
+                <span>✨ 투명 결과물</span>
+              </button>
+              <button class="tab-btn" id="tabOriginalView">
+                <span>원본 보기</span>
+              </button>
+              <button class="tab-btn" id="tabSplitView">
+                <span>좌우 비교 분할</span>
+              </button>
+            </div>
+            <div class="zoom-controls">
+              <button id="btnZoomOut" class="btn btn-icon btn-tiny" title="축소 (마우스 휠)">-</button>
+              <span class="zoom-text" id="zoomLevelText">100%</span>
+              <button id="btnZoomIn" class="btn btn-icon btn-tiny" title="확대 (마우스 휠)">+</button>
+              <button id="btnZoomFit" class="btn btn-outline btn-tiny" title="화면에 맞추기">Fit</button>
+              <button id="btnZoomReset" class="btn btn-outline btn-tiny" title="100% 원본 크기">1:1</button>
+            </div>
+          </div>
+
+          <!-- Main Canvas Display Stage -->
+          <div class="canvas-stage" id="canvasStage">
+            <div class="canvas-transform-layer" id="canvasTransformLayer">
+              <!-- Background Canvas (for colored bg / split view) -->
+              <canvas id="bgCanvas" class="hidden"></canvas>
+              <!-- Original Pristine Canvas -->
+              <canvas id="originalCanvas" class="hidden"></canvas>
+              <!-- Active Editing Canvas (Displays transparent cut-out) -->
+              <canvas id="mainCanvas"></canvas>
+              <!-- Split View Left Overlay Canvas -->
+              <canvas id="splitOverlayCanvas" class="hidden"></canvas>
+              <!-- Split Handle Bar -->
+              <div id="splitDivider" class="split-divider hidden">
+                <div class="split-handle">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                    <polyline points="9 18 3 12 9 6"></polyline>
+                  </svg>
+                </div>
+              </div>
+              <!-- Floating Interactive Brush Cursor -->
+              <div id="brushCursor" class="brush-cursor hidden"></div>
+            </div>
+          </div>
+
+          <!-- Viewport Footer Status -->
+          <div class="viewport-footer">
+            <span class="status-item" id="cursorPosText">좌표: -</span>
+            <span class="status-item tip-text">단축키: <b>Space+드래그</b> 화면이동 | <b>Ctrl+Z</b> 되돌리기 | <b>Ctrl+C</b> 복사</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastMessage" class="toast-message hidden"></div>
+
+  <!-- Scripts -->
+  <script src="remover-engine.js"></script>
+  <script src="remover.js"></script>
+</body>
+</html>

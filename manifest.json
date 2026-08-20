@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Oh My Img - 스마트 이미지 매니저 & 일괄 크롭기",
-  "version": "1.0.0",
-  "description": "스크린샷 및 이미지의 상하단 여백과 워터마크를 실시간 프리뷰와 함께 일괄 크롭하고 ZIP으로 저장하는 스마트 이미지 관리 도구입니다.",
+  "name": "Oh My Img - 스마트 이미지 크롭 & 배경 제거(누끼) 스튜디오",
+  "version": "1.1.0",
+  "description": "대용량 이미지 일괄 크롭 & ZIP 압축 및 온디바이스 AI 기반 실시간 배경 제거(누끼 따기)를 지원하는 스마트 이미지 매니저입니다.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,6 +20,20 @@
   "permissions": [
     "activeTab",
     "downloads",
-    "storage"
+    "storage",
+    "clipboardWrite"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*",
+        "lib/transformers/*",
+        "icons/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

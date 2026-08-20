@@ -393,6 +393,17 @@ function setupActionButtons() {
 
   btnBatchZip.addEventListener("click", runBatchExport);
 
+  const btnOpenRemover = document.getElementById("btnOpenRemover");
+  if (btnOpenRemover) {
+    btnOpenRemover.addEventListener("click", () => {
+      if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+        chrome.tabs.create({ url: chrome.runtime.getURL("remover/remover.html") });
+      } else {
+        window.open("../remover/remover.html", "_blank");
+      }
+    });
+  }
+
   document.getElementById("btnHeaderHelp").addEventListener("click", () => {
     alert(
       "【Oh My Img Cropper 워크스페이스 사용법】\n\n" +

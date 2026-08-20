@@ -98,6 +98,21 @@ body {
   width: 100%;
 }
 
+.btn-magic {
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.3);
+}
+
+.btn-magic:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  transform: translateY(-1px);
+}
+
+.btn-magic .btn-text small {
+  color: #fce7f3;
+}
+
 .btn-primary {
   background-color: var(--accent-blue);
   color: white;

@@ -8,6 +8,14 @@ if (savedTheme === "light" || (!savedTheme && window.matchMedia && window.matchM
   document.body.classList.add("dark-theme");
 }
 
+document.getElementById("btnOpenRemover").addEventListener("click", () => {
+  if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+    chrome.tabs.create({ url: chrome.runtime.getURL("remover/remover.html") });
+  } else {
+    window.open("../remover/remover.html", "_blank");
+  }
+});
+
 document.getElementById("btnOpenWorkspace").addEventListener("click", () => {
   if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
     chrome.tabs.create({ url: chrome.runtime.getURL("workspace/workspace.html") });
