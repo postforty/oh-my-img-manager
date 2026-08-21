@@ -209,8 +209,17 @@ body {
 }
 
 .popup-footer {
-  text-align: center;
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 10.5px;
+  letter-spacing: -0.2px;
   color: var(--text-muted);
   padding-top: 4px;
+}
+
+.popup-footer svg {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
