@@ -67,6 +67,8 @@ const bgCanvas = document.getElementById("bgCanvas");
 const splitOverlayCanvas = document.getElementById("splitOverlayCanvas");
 const splitDivider = document.getElementById("splitDivider");
 const brushCursor = document.getElementById("brushCursor");
+const aiScanOverlay = document.getElementById("aiScanOverlay");
+const scanBadgeText = document.getElementById("scanBadgeText");
 
 // AI Section Elements
 const selectAiModel = document.getElementById("selectAiModel");
@@ -228,36 +230,61 @@ function handleWorkerMessage(e) {
     }
   } else if (type === "INITIATE") {
     aiProgressWrap.classList.remove("hidden");
-    aiStatusText.textContent = `AI 모델 다운로드 준비 중... (${file || "model"})`;
+    aiStatusText.textContent = "준비 중...";
+    if (scanBadgeText) scanBadgeText.textContent = "준비 중...";
   } else if (type === "PROGRESS") {
     aiProgressWrap.classList.remove("hidden");
     aiProgressBarFill.style.width = `${progress}%`;
-    aiStatusText.textContent = `모델 다운로드 중... ${progress}% (${file || ""})`;
+    aiStatusText.textContent = `다운로드 중... (${progress}%)`;
+    if (scanBadgeText) scanBadgeText.textContent = `다운로드 중... (${progress}%)`;
   } else if (type === "INFERENCE_START") {
     aiProgressBarFill.style.width = `95%`;
-    aiStatusText.textContent = "AI 피사체 분리 연산 중...";
+    aiStatusText.textContent = "배경 제거 중...";
+    if (scanBadgeText) scanBadgeText.textContent = "배경 제거 중...";
   } else if (type === "SUCCESS") {
     aiProgressBarFill.style.width = `100%`;
     aiStatusText.textContent = "완료!";
+    if (scanBadgeText) scanBadgeText.textContent = "완료!";
 
     const maskData = new Uint8ClampedArray(maskBuffer);
     RemoverEngine.applyAlphaMask(mainCanvas, maskData, width, height, originalCanvas);
 
     historyManager.pushState(mainCanvas);
-    updateUndoRedoButtons();
     updateCanvasDisplay();
 
     setTimeout(() => {
       aiProgressWrap.classList.add("hidden");
-      state.ai.isProcessing = false;
-      btnRunAi.disabled = false;
+      setAIProcessingState(false);
       showToast("AI 배경 제거가 완료되었습니다!", "success");
     }, 400);
   } else if (type === "ERROR") {
     aiProgressWrap.classList.add("hidden");
-    state.ai.isProcessing = false;
-    btnRunAi.disabled = false;
+    setAIProcessingState(false);
     alert(`AI 배경 제거 실패: ${error}`);
+  }
+}
+
+// -------------------------------------------------------------
+// AI Processing State & Visual Feedback Controller
+// -------------------------------------------------------------
+function setAIProcessingState(isProcessing, statusText = "") {
+  state.ai.isProcessing = isProcessing;
+
+  if (isProcessing) {
+    canvasStage.classList.add("ai-processing");
+    if (aiScanOverlay) aiScanOverlay.classList.remove("hidden");
+    if (brushCursor) brushCursor.classList.add("hidden");
+    if (statusText && scanBadgeText) {
+      scanBadgeText.textContent = statusText;
+    }
+    enableControls(false);
+    if (btnUndo) btnUndo.disabled = true;
+    if (btnRedo) btnRedo.disabled = true;
+  } else {
+    canvasStage.classList.remove("ai-processing");
+    if (aiScanOverlay) aiScanOverlay.classList.add("hidden");
+    enableControls(true);
+    updateUndoRedoButtons();
   }
 }
 
@@ -547,6 +574,12 @@ function setupCanvasInteractions() {
     const { x, y } = getCanvasCoords(e);
     cursorPosText.textContent = `좌표: ${x}, ${y} px`;
 
+    // Hide brush cursor and ignore brush if AI is processing
+    if (state.ai.isProcessing) {
+      brushCursor.classList.add("hidden");
+      return;
+    }
+
     // Update Floating Brush Cursor position & size
     if (state.activeTool === "brush" && !state.colorKey.eyedropperActive && !state.isSpacePressed) {
       brushCursor.classList.remove("hidden");
@@ -588,7 +621,7 @@ function setupCanvasInteractions() {
 
   // Mouse Down
   canvasStage.addEventListener("mousedown", (e) => {
-    if (!state.originalImage || e.button !== 0 || state.isSpacePressed) return;
+    if (!state.originalImage || e.button !== 0 || state.isSpacePressed || state.ai.isProcessing) return;
 
     // Check if clicked near Split Divider
     if (state.viewMode === "split") {
@@ -713,11 +746,10 @@ function setupAIControls() {
       return;
     }
 
-    state.ai.isProcessing = true;
-    btnRunAi.disabled = true;
+    setAIProcessingState(true, "준비 중...");
     aiProgressWrap.classList.remove("hidden");
     aiProgressBarFill.style.width = "5%";
-    aiStatusText.textContent = "AI 모델 로딩 중...";
+    aiStatusText.textContent = "준비 중...";
 
     // Send original image data to worker
     const ctx = originalCanvas.getContext("2d", { willReadFrequently: true });
