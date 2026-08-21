@@ -5,9 +5,20 @@
 
 import { AutoModel, AutoProcessor, env, RawImage } from "../lib/transformers/transformers.min.js";
 
+// Suppress harmless internal warnings from transformers.js to keep the extension error log clean.
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (args.length > 0 && typeof args[0] === 'string') {
+    if (args[0].includes('Unknown model class') || args[0].includes('assuming encoder-only architecture')) {
+      return; // Ignore harmless warnings
+    }
+  }
+  originalWarn(...args);
+};
+
 // Determine WebGPU capability
-const hasWebGPU = typeof navigator !== "undefined" && navigator.gpu;
-let currentBackend = hasWebGPU ? "webgpu" : "wasm";
+// const hasWebGPU = typeof navigator !== "undefined" && navigator.gpu;
+let currentBackend = "wasm"; // Force WASM backend for stability in Chrome Extensions
 
 // Configure local WASM binaries and browser cache
 if (env) {
@@ -24,6 +35,7 @@ if (env) {
   if (extensionBase && env.backends && env.backends.onnx && env.backends.onnx.wasm) {
     env.backends.onnx.wasm.wasmPaths = extensionBase;
     env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.wasm.proxy = false;
   }
 }
 
@@ -50,12 +62,8 @@ async function getModelAndProcessor(modelId = "briaai/RMBG-1.4", progressCallbac
     const modelOptions = {
       device: currentBackend,
       progress_callback: progressCallback,
+      dtype: "fp32", // Add explicit dtype to prevent fallback to non-existent q8
     };
-    
-    // briaai/RMBG-1.4 requires custom model_type config
-    if (modelId === "briaai/RMBG-1.4") {
-      modelOptions.config = { model_type: "custom" };
-    }
 
     modelInstance = await AutoModel.from_pretrained(modelId, modelOptions);
   } catch (err) {
@@ -65,10 +73,8 @@ async function getModelAndProcessor(modelId = "briaai/RMBG-1.4", progressCallbac
       const modelOptions = {
         device: "wasm",
         progress_callback: progressCallback,
+        dtype: "fp32", // Add explicit dtype to prevent fallback to non-existent q8
       };
-      if (modelId === "briaai/RMBG-1.4") {
-        modelOptions.config = { model_type: "custom" };
-      }
       modelInstance = await AutoModel.from_pretrained(modelId, modelOptions);
     } else {
       throw err;
