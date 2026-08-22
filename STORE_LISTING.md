@@ -13,6 +13,7 @@
 | **패키지 요약 (Short Description)** | 대용량 이미지 일괄 크롭 & ZIP 압축 및 온디바이스 AI 기반 실시간 배경 제거(누끼 따기)를 지원하는 스마트 이미지 매니저입니다. |
 | **카테고리** | **생산성 (Productivity)** *(권장)* 또는 **사진 (Photos)** |
 | **기본 언어** | **한국어 (Korean)** |
+| **지원 언어** | **한국어 (Korean), 영어 (English)** (브라우저 언어 자동 감지) |
 
 ---
 
@@ -45,7 +46,7 @@ The single purpose of this extension is to provide a local, privacy-focused imag
 
 ### ③ `storage` 사용 근거
 ```text
-사용자가 설정한 크롭 비율(상/하/좌/우 마진), 기본 출력 포맷(PNG/JPG/WebP), 압축 품질 및 다크/라이트 테마 설정을 브라우저 로컬에 저장하여 유지하기 위해 사용합니다.
+사용자가 설정한 크롭 비율(상/하/좌/우 마진), 기본 출력 포맷(PNG/JPG/WebP), 압축 품질, 다국어 언어 설정(한국어/영어/자동) 및 다크/라이트 테마 설정을 브라우저 로컬에 저장하여 유지하기 위해 사용합니다.
 ```
 
 ### ④ `clipboardWrite` 사용 근거
@@ -82,7 +83,7 @@ https://github.com/postforty/oh-my-img-manager/blob/main/PRIVACY.md
 
 ---
 
-## 2. 상세 설명 (Description)
+## 6. 상세 설명 (Description - 한국어)
 
 > 스토어의 **설명(Description)** 입력창에 아래 내용을 그대로 복사하여 붙여넣으세요.
 
@@ -99,15 +100,16 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1️⃣ 스마트 배경 제거 (AI 누끼 따기) 스튜디오
-- 🤖 온디바이스 AI 누끼: 최신 AI 세그멘테이션 모델을 통해 사람, 제품, 동물 등의 배경을 클릭 한 번으로 깔끔하게 제거합니다.
+- 🤖 온디바이스 SOTA AI 누끼: 최신 AI 모델(RMBG-1.4, MODNet)을 통해 인물, 상품, 사물 등의 배경을 원클릭으로 정밀 분리합니다. (WebGPU 고속 가속 및 WASM 자동 지원)
 - 🎨 스포이드/단색 지우개: 단색 배경이나 스포이드로 지정한 색상을 허용 오차(Tolerance) 및 경계 페더링(Feather)과 함께 즉시 투명화합니다.
 - 🖌️ 수동 리터칭 브러시: 지우개(Erase) 및 복원 펜(Restore) 브러시로 미세한 경계면을 정밀하게 다듬을 수 있습니다.
 - 📋 원클릭 클립보드 연동: Ctrl+V로 이미지를 바로 불러오고, 결과물을 Ctrl+C(복사)하여 PPT, 포토샵, 피그마에 즉시 붙여넣으세요.
 - 🔀 Split 비교 뷰: 원본과 누끼 결과물을 슬라이더로 좌우 비교하며 검토할 수 있습니다.
+- 🎨 배경 채우기: 투명 배경 외에도 화이트, 블랙, 커스텀 단색 배경을 손쉽게 채워 넣을 수 있습니다.
 
 2️⃣ 대용량 이미지 일괄 크롭 & ZIP 일괄 다운로드
 - 📁 수십~수백 장의 이미지를 드래그 앤 드롭으로 한 번에 불러옵니다.
-- ⚡ 지정한 비율(상/하/좌/우 정밀 조정)로 모든 이미지를 일괄 크롭합니다.
+- ⚡ 지정한 비율(상/하/좌/우 정밀 조정 및 프리셋)로 모든 이미지를 일괄 크롭합니다.
 - 📦 처리된 모든 결과물을 단 몇 초 만에 ZIP 압축 파일로 즉시 다운로드합니다.
 - 👁️ 실시간 듀얼 프리뷰: 자를 영역 가이드와 실제 잘려나간 결과물을 탭으로 즉시 확인 가능합니다.
 
@@ -117,10 +119,13 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 4️⃣ 다양한 포맷 & 무손실 품질 설정
 - PNG (투명 알파 채널 지원), JPG (품질 조절 가능), WebP(초경량 최신 포맷) 지원
 
+5️⃣ 다국어(한국어/영어) & 다크/라이트 모드 지원
+- 한국어 및 영어를 기본 지원하며, 사용자 취향에 맞춘 다크/라이트 테마를 제공합니다.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔒 100% 로컬 처리 & 완벽한 프라이버시 보호
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- 업로드한 이미지와 AI 연산(Transformers.js / WebAssembly)은 사용자의 PC(브라우저) 내부에서만 동작합니다.
+- 업로드한 이미지와 AI 연산(Transformers.js / WebAssembly / WebGPU)은 사용자의 PC(브라우저) 내부에서만 동작합니다.
 - 이미지가 외부 서버로 절대 전송되지 않으므로, 보안 및 개인정보 유출 걱정 없이 안심하고 사용하실 수 있습니다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -134,7 +139,7 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 
 ---
 
-## 3. 영문 설명 (Global / English Description - 필요 시 사용)
+## 7. 영문 설명 (Global / English Description)
 
 ```text
 🚀 Oh My Image Manager - Smart Batch Image Cropper & AI Background Remover Studio
@@ -149,26 +154,31 @@ A powerful, privacy-first Chrome Extension that lets you batch crop hundreds of 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1️⃣ Smart AI Background Remover Studio
-- 🤖 On-Device AI: Remove backgrounds from portraits, products, and animals with a single click.
+- 🤖 On-Device SOTA AI: Remove backgrounds from portraits, products, and animals with a single click using RMBG-1.4 & MODNet models (WebGPU accelerated with WASM fallback).
 - 🎨 Color Picker / Tolerance: Cleanly remove solid background colors with adjustable feathering.
 - 🖌️ Retouching Brush: Fine-tune edges with precision Erase and Restore brushes.
 - 📋 Seamless Clipboard Workflow: Paste images with Ctrl+V and copy results with Ctrl+C directly into Figma, Photoshop, or PPT.
 - 🔀 Split View: Compare original and cutout images side-by-side with an interactive slider.
+- 🎨 Background Fill: Easily replace transparent backgrounds with solid white, black, or custom colors.
 
 2️⃣ High-Volume Batch Crop & ZIP Export
 - 📁 Drag and drop dozens or hundreds of images at once.
-- ⚡ Crop all images consistently using precise margin controls.
+- ⚡ Crop all images consistently using precise presets and margin controls.
 - 📦 Export all cropped images into a single ZIP archive in seconds.
 - 👁️ Real-time Dual Preview: Visual bounds overlay and final output rendering.
 
 3️⃣ One-Click Web Tab Capture & Crop
 - Instantly capture your current browser tab, apply preset crop bounds, and download.
 
-4️⃣ Multi-Format Support
+4️⃣ Multi-Format Support & Custom Quality
 - Export to PNG (transparent), JPG (custom quality), and modern WebP.
+
+5️⃣ Multi-Language (Korean/English) & Dark/Light Mode
+- Built-in multi-language support (Auto / Korean / English) with sleek Dark & Light themes.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔒 100% Privacy & Local Computation
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-All AI models (Transformers.js / WebAssembly) and Canvas computations run entirely in your local browser. Your images never leave your machine.
+All AI models (Transformers.js / WebAssembly / WebGPU) and Canvas computations run entirely in your local browser. Your images never leave your machine.
 ```
+

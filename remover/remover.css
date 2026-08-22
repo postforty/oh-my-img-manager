@@ -146,6 +146,24 @@ body {
   gap: 10px;
 }
 
+.header-lang-select {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.header-lang-select:hover,
+.header-lang-select:focus {
+  border-color: var(--accent-primary);
+}
+
 .file-summary {
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -492,54 +510,97 @@ body.light-theme .theme-moon-icon {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 6px 4px;
+  padding: 6px 4px 5px 4px;
+  height: 52px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
+  font-family: var(--font-family);
   font-size: 0.72rem;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.bg-fill-btn span:last-child {
+  display: block;
+  width: 100%;
+  text-align: center;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bg-fill-btn:hover {
   border-color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .bg-fill-btn.active {
   border-color: var(--accent-primary);
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(59, 130, 246, 0.12);
   color: var(--text-primary);
   font-weight: 600;
 }
 
 .checker-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: linear-gradient(45deg, #555 25%, transparent 25%),
-              linear-gradient(-45deg, #555 25%, transparent 25%),
-              linear-gradient(45deg, transparent 75%, #555 75%),
-              linear-gradient(-45deg, transparent 75%, #555 75%);
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(45deg, #777 25%, transparent 25%),
+              linear-gradient(-45deg, #777 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, #777 75%),
+              linear-gradient(-45deg, transparent 75%, #777 75%);
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid var(--border-color);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .color-chip {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.2);
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .custom-color-label input[type="color"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   width: 18px;
   height: 18px;
-  border: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
   cursor: pointer;
   background: transparent;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  display: block;
+}
+
+.custom-color-label input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-color-label input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+.custom-color-label input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 3px;
 }
 
 /* History Actions */

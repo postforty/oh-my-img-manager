@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oh My Image Manager - 스마트 배경 제거(누끼) 스튜디오</title>
+  <title data-i18n="removerPageTitle">Oh My Image Manager - 스마트 배경 제거(누끼) 스튜디오</title>
   <link rel="stylesheet" href="remover.css" />
 </head>
 <body class="dark-theme">
@@ -11,24 +11,29 @@
     <!-- Header -->
     <header class="app-header">
       <div class="logo-area">
-        <div class="logo-icon-wrap" title="Oh My Image Manager">
+        <div class="logo-icon-wrap" data-i18n-title="extShortName" title="Oh My Image Manager">
           <img src="../icons/icon48.png" alt="Oh My Image Manager" class="logo-img" />
         </div>
         <div class="logo-text">
-          <h1>Oh My Image Manager <span class="sub-title">누끼 스튜디오</span></h1>
-          <span class="badge">AI On-Device</span>
+          <h1><span data-i18n="extShortName">Oh My Image Manager</span> <span class="sub-title" data-i18n="removerSubTitle">누끼 스튜디오</span></h1>
+          <span class="badge" data-i18n="badgeAi">AI On-Device</span>
         </div>
       </div>
       <div class="header-actions">
-        <span class="file-summary" id="imageDimensions">이미지를 불러와 주세요</span>
-        <button id="btnOpenCropper" class="btn btn-outline btn-small" title="대량 일괄 크롭 워크스페이스로 이동">
+        <span class="file-summary" id="imageDimensions" data-i18n="imageDimensionsEmpty">이미지를 불러와 주세요</span>
+        <button id="btnOpenCropper" class="btn btn-outline btn-small" data-i18n-title="navCropStudioTitle" title="대량 일괄 크롭 워크스페이스로 이동">
           <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2"></rect>
             <path d="M9 3v18"></path>
           </svg>
-          <span>일괄 크롭기</span>
+          <span data-i18n="navCropStudio">일괄 크롭기</span>
         </button>
-        <button id="btnThemeToggle" class="btn btn-icon" title="테마 변경 (다크/라이트 모드)">
+        <select id="uiLanguageSelect" class="header-lang-select" aria-label="UI Language">
+          <option value="auto" data-i18n="langAuto">자동 감지 (Auto)</option>
+          <option value="ko" data-i18n="langKo">한국어</option>
+          <option value="en" data-i18n="langEn">English</option>
+        </select>
+        <button id="btnThemeToggle" class="btn btn-icon" data-i18n-title="themeToggle" title="테마 변경 (다크/라이트 모드)">
           <svg class="theme-sun-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"></circle>
             <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -44,7 +49,7 @@
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
-        <button id="btnHelp" class="btn btn-icon" title="도움말">
+        <button id="btnHelp" class="btn btn-icon" data-i18n-title="help" title="도움말">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -69,32 +74,32 @@
                 <line x1="8" y1="16" x2="8" y2="16"></line>
                 <line x1="16" y1="16" x2="16" y2="16"></line>
               </svg>
-              <span>AI 스마트 누끼</span>
+              <span data-i18n="sectionAiRemoval">AI 스마트 누끼</span>
             </h2>
             <div style="display: flex; gap: 6px;">
               <span id="aiBackendBadge" class="mini-pill hidden"></span>
-              <span class="mini-pill">추천</span>
+              <span class="mini-pill" data-i18n="badgeRecommended">추천</span>
             </div>
           </div>
           <div class="form-row">
-            <label for="selectAiModel">AI 모델:</label>
+            <label for="selectAiModel" data-i18n="labelAiModel">AI 모델:</label>
             <select id="selectAiModel" class="select-box">
-              <option value="briaai/RMBG-1.4" selected>RMBG-1.4 (초고화질 SOTA)</option>
-              <option value="Xenova/modnet">MODNet (경량 인물 특화)</option>
+              <option value="briaai/RMBG-1.4" selected data-i18n="modelRmbg">RMBG-1.4 (초고화질 SOTA)</option>
+              <option value="Xenova/modnet" data-i18n="modelModnet">MODNet (경량 인물 특화)</option>
             </select>
           </div>
           <button id="btnRunAi" class="btn btn-magic btn-block" disabled>
             <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
-            <span>원클릭 AI 배경 제거</span>
+            <span data-i18n="btnRunAi">원클릭 AI 배경 제거</span>
           </button>
           <!-- AI Progress Bar -->
           <div class="ai-progress-wrap hidden" id="aiProgressWrap">
             <div class="progress-bar-container">
               <div class="progress-bar-fill" id="aiProgressBarFill" style="width: 0%;"></div>
             </div>
-            <div class="ai-status-text" id="aiStatusText">AI 모델 준비 중...</div>
+            <div class="ai-status-text" id="aiStatusText" data-i18n="aiStatusReady">AI 모델 준비 중...</div>
           </div>
         </section>
 
@@ -112,16 +117,16 @@
               <path d="m3 21 9-9"></path>
               <path d="M12.2 6.2 11 5"></path>
             </svg>
-            <span>단색 / 스포이드 지우개</span>
+            <span data-i18n="sectionSolidColor">단색 / 스포이드 지우개</span>
           </h2>
           <div class="color-picker-row">
-            <button id="btnEyedropper" class="btn btn-outline btn-small" disabled title="이미지에서 제거할 배경색을 클릭하세요">
+            <button id="btnEyedropper" class="btn btn-outline btn-small" disabled data-i18n-title="btnEyedropperTitle" title="이미지에서 제거할 배경색을 클릭하세요">
               <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m2 22 1-1h3l9-9"></path>
                 <path d="M14 6l4 4"></path>
                 <path d="m18 2 4 4-2 2-4-4Z"></path>
               </svg>
-              <span>스포이드 선택</span>
+              <span data-i18n="btnEyedropper">스포이드 선택</span>
             </button>
             <div class="picked-color-display">
               <div class="color-preview-box" id="colorPreviewBox" style="background-color: #ffffff;"></div>
@@ -130,20 +135,20 @@
           </div>
           <div class="slider-item">
             <div class="slider-label">
-              <span>허용 오차 (Tolerance)</span>
+              <span data-i18n="labelTolerance">허용 오차 (Tolerance)</span>
               <span class="slider-value" id="valTolerance">30</span>
             </div>
             <input type="range" id="rangeTolerance" min="1" max="120" step="1" value="30" />
           </div>
           <div class="slider-item">
             <div class="slider-label">
-              <span>가장자리 부드럽게 (Feather)</span>
+              <span data-i18n="labelFeather">가장자리 부드럽게 (Feather)</span>
               <span class="slider-value" id="valFeather">2px</span>
             </div>
             <input type="range" id="rangeFeather" min="0" max="15" step="1" value="2" />
           </div>
           <button id="btnApplyColorKey" class="btn btn-secondary btn-block" disabled>
-            <span>선택 색상 투명화 적용</span>
+            <span data-i18n="btnApplyColorKey">선택 색상 투명화 적용</span>
           </button>
         </section>
 
@@ -154,7 +159,7 @@
               <path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path>
               <path d="M7.07 14.94l-3.8 3.8a1 1 0 0 0 0 1.41l2.4 2.4a1 1 0 0 0 1.4 0l3.8-3.8"></path>
             </svg>
-            <span>수동 리터칭 브러시</span>
+            <span data-i18n="sectionManualBrush">수동 리터칭 브러시</span>
           </h2>
           <div class="brush-mode-group">
             <button class="btn btn-segment active" id="btnBrushErase" data-mode="erase">
@@ -163,26 +168,26 @@
                 <path d="M22 21H7"></path>
                 <path d="m5 11 9 9"></path>
               </svg>
-              <span>지우개</span>
+              <span data-i18n="brushErase">지우개</span>
             </button>
             <button class="btn btn-segment" id="btnBrushRestore" data-mode="restore">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 20h9"></path>
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
               </svg>
-              <span>복원 펜</span>
+              <span data-i18n="brushRestore">복원 펜</span>
             </button>
           </div>
           <div class="slider-item">
             <div class="slider-label">
-              <span>브러시 크기</span>
+              <span data-i18n="labelBrushSize">브러시 크기</span>
               <span class="slider-value" id="valBrushSize">30px</span>
             </div>
             <input type="range" id="rangeBrushSize" min="5" max="150" step="1" value="30" />
           </div>
           <div class="slider-item">
             <div class="slider-label">
-              <span>경계 부드러움</span>
+              <span data-i18n="labelBrushHardness">경계 부드러움</span>
               <span class="slider-value" id="valBrushHardness">50%</span>
             </div>
             <input type="range" id="rangeBrushHardness" min="0" max="100" step="5" value="50" />
@@ -199,24 +204,24 @@
               <path d="m14.83 14.83 4.24 4.24"></path>
               <path d="m9.17 14.83-4.24 4.24"></path>
             </svg>
-            <span>배경 채우기</span>
+            <span data-i18n="sectionBgFill">배경 채우기</span>
           </h2>
           <div class="bg-fill-grid">
-            <button class="bg-fill-btn active" data-bg="transparent" title="투명 배경">
+            <button class="bg-fill-btn active" data-bg="transparent" data-i18n-title="bgTransparentTitle" title="투명 배경">
               <span class="checker-icon"></span>
-              <span>투명</span>
+              <span data-i18n="bgTransparent">투명</span>
             </button>
-            <button class="bg-fill-btn" data-bg="#ffffff" title="흰색 배경">
+            <button class="bg-fill-btn" data-bg="#ffffff" data-i18n-title="bgWhiteTitle" title="흰색 배경">
               <span class="color-chip" style="background:#ffffff;"></span>
-              <span>화이트</span>
+              <span data-i18n="bgWhite">화이트</span>
             </button>
-            <button class="bg-fill-btn" data-bg="#000000" title="검은색 배경">
+            <button class="bg-fill-btn" data-bg="#000000" data-i18n-title="bgBlackTitle" title="검은색 배경">
               <span class="color-chip" style="background:#000000;"></span>
-              <span>블랙</span>
+              <span data-i18n="bgBlack">블랙</span>
             </button>
-            <label class="bg-fill-btn custom-color-label" title="커스텀 색상 선택">
+            <label class="bg-fill-btn custom-color-label" data-i18n-title="bgCustomColorTitle" title="커스텀 색상 선택">
               <input type="color" id="inputCustomBg" value="#efd430" />
-              <span>컬러</span>
+              <span data-i18n="bgCustomColor">컬러</span>
             </label>
           </div>
         </section>
@@ -224,19 +229,19 @@
         <!-- 5. History & Export Actions -->
         <section class="action-section">
           <div class="history-actions">
-            <button id="btnUndo" class="btn btn-icon-text" disabled title="실행 취소 (Ctrl+Z)">
+            <button id="btnUndo" class="btn btn-icon-text" disabled data-i18n-title="btnUndoTitle" title="실행 취소 (Ctrl+Z)">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 7v6h6"></path>
                 <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
               </svg>
-              <span>되돌리기</span>
+              <span data-i18n="btnUndo">되돌리기</span>
             </button>
-            <button id="btnRedo" class="btn btn-icon-text" disabled title="다시 실행 (Ctrl+Y)">
+            <button id="btnRedo" class="btn btn-icon-text" disabled data-i18n-title="btnRedoTitle" title="다시 실행 (Ctrl+Y)">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 7v6h-6"></path>
                 <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
               </svg>
-              <span>다시하기</span>
+              <span data-i18n="btnRedo">다시하기</span>
             </button>
           </div>
           <button id="btnDownloadPng" class="btn btn-primary btn-large" disabled>
@@ -245,14 +250,14 @@
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span>투명 PNG 다운로드</span>
+            <span data-i18n="btnDownloadPng">투명 PNG 다운로드</span>
           </button>
           <button id="btnCopyClipboard" class="btn btn-secondary" disabled>
             <svg class="btn-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
-            <span>클립보드로 복사 (Ctrl+C)</span>
+            <span data-i18n="btnCopyClipboard">클립보드로 복사 (Ctrl+C)</span>
           </button>
           <button id="btnResetImage" class="btn btn-ghost" disabled>
             <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -261,7 +266,7 @@
               <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
               <path d="M8 16H3v5"></path>
             </svg>
-            <span>새 이미지 열기</span>
+            <span data-i18n="btnResetImage">새 이미지 열기</span>
           </button>
         </section>
       </aside>
@@ -272,13 +277,13 @@
         <div id="dropZone" class="drop-zone">
           <div class="drop-icon">
             <svg class="drop-icon-svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
           </div>
-          <h3>편집할 이미지를 이곳으로 드래그 앤 드롭하세요</h3>
-          <p>또는 언제든 <strong>Ctrl + V</strong>를 눌러 클립보드 이미지를 즉시 붙여넣을 수 있습니다</p>
+          <h3 data-i18n="dropZoneRemoverTitle">편집할 이미지를 이곳으로 드래그 앤 드롭하세요</h3>
+          <p data-i18n="dropZoneRemoverDesc">또는 언제든 <strong>Ctrl + V</strong>를 눌러 클립보드 이미지를 즉시 붙여넣을 수 있습니다</p>
           <div class="drop-actions">
             <label class="btn btn-primary file-btn">
               <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -286,7 +291,7 @@
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
-              <span>파일 선택하기</span>
+              <span data-i18n="btnSelectFile">파일 선택하기</span>
               <input type="file" id="fileInput" accept="image/*" />
             </label>
           </div>
@@ -297,13 +302,13 @@
                 <path d="M9 18h6"></path>
                 <path d="M10 22h4"></path>
               </svg>
-              <span>Ctrl + V 클립보드 붙여넣기</span>
+              <span data-i18n="hintPaste">Ctrl + V 클립보드 붙여넣기</span>
             </span>
             <span class="hint-tag">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
-              <span>100% 로컬 프라이버시</span>
+              <span data-i18n="hintPrivacy">100% 로컬 프라이버시</span>
             </span>
             <span class="hint-tag">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -313,7 +318,7 @@
                 <line x1="8" y1="16" x2="8" y2="16"></line>
                 <line x1="16" y1="16" x2="16" y2="16"></line>
               </svg>
-              <span>SOTA AI 누끼</span>
+              <span data-i18n="hintSotaAi">SOTA AI 누끼</span>
             </span>
           </div>
         </div>
@@ -327,30 +332,30 @@
                 <svg class="tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path>
                 </svg>
-                <span>투명 결과물</span>
+                <span data-i18n="tabResultView">투명 결과물</span>
               </button>
               <button class="tab-btn" id="tabOriginalView">
                 <svg class="tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
                   <circle cx="8.5" cy="8.5" r="1.5"></circle>
                   <polyline points="21 15 16 10 5 21"></polyline>
                 </svg>
-                <span>원본 보기</span>
+                <span data-i18n="tabOriginalView">원본 보기</span>
               </button>
               <button class="tab-btn" id="tabSplitView">
                 <svg class="tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
                   <line x1="12" y1="3" x2="12" y2="21"></line>
                 </svg>
-                <span>좌우 비교 분할</span>
+                <span data-i18n="tabSplitView">좌우 비교 분할</span>
               </button>
             </div>
             <div class="zoom-controls">
-              <button id="btnZoomOut" class="btn btn-icon btn-tiny" title="축소 (마우스 휠)">-</button>
+              <button id="btnZoomOut" class="btn btn-icon btn-tiny" data-i18n-title="btnZoomOutTitle" title="축소 (마우스 휠)">-</button>
               <span class="zoom-text" id="zoomLevelText">100%</span>
-              <button id="btnZoomIn" class="btn btn-icon btn-tiny" title="확대 (마우스 휠)">+</button>
-              <button id="btnZoomFit" class="btn btn-outline btn-tiny" title="화면에 맞추기">Fit</button>
-              <button id="btnZoomReset" class="btn btn-outline btn-tiny" title="100% 원본 크기">1:1</button>
+              <button id="btnZoomIn" class="btn btn-icon btn-tiny" data-i18n-title="btnZoomInTitle" title="확대 (마우스 휠)">+</button>
+              <button id="btnZoomFit" class="btn btn-outline btn-tiny" data-i18n-title="btnZoomFitTitle" title="화면에 맞추기" data-i18n="btnZoomFit">Fit</button>
+              <button id="btnZoomReset" class="btn btn-outline btn-tiny" data-i18n-title="btnZoomResetTitle" title="100% 원본 크기" data-i18n="btnZoomReset">1:1</button>
             </div>
           </div>
 
@@ -381,7 +386,7 @@
                 <div class="scan-beam"></div>
                 <div class="scan-badge">
                   <div class="scan-spinner"></div>
-                  <span id="scanBadgeText">배경 제거 중...</span>
+                  <span id="scanBadgeText" data-i18n="scanBadgeText">배경 제거 중...</span>
                 </div>
               </div>
             </div>
@@ -389,8 +394,8 @@
 
           <!-- Viewport Footer Status -->
           <div class="viewport-footer">
-            <span class="status-item" id="cursorPosText">좌표: -</span>
-            <span class="status-item tip-text">단축키: <b>Space+드래그</b> 화면이동 | <b>Ctrl+Z</b> 되돌리기 | <b>Ctrl+C</b> 복사</span>
+            <span class="status-item" id="cursorPosText" data-i18n="cursorPosEmpty">좌표: -</span>
+            <span class="status-item tip-text" data-i18n-html="shortcutTipText">단축키: <b>Space+드래그</b> 화면이동 | <b>Ctrl+Z</b> 되돌리기 | <b>Ctrl+C</b> 복사</span>
           </div>
         </div>
       </section>
@@ -401,6 +406,7 @@
   <div id="toastMessage" class="toast-message hidden"></div>
 
   <!-- Scripts -->
+  <script src="../i18n.js"></script>
   <script src="remover-engine.js"></script>
   <script src="remover.js"></script>
 </body>

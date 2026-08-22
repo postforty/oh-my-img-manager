@@ -80,6 +80,31 @@ body {
   font-weight: 700;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.popup-lang-select {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-family: inherit;
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.popup-lang-select:hover,
+.popup-lang-select:focus {
+  border-color: var(--accent-blue);
+}
+
 .btn-guide-icon {
   background: transparent;
   border: 1px solid var(--border-color);

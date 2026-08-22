@@ -28,7 +28,12 @@ function applyTheme(theme) {
   }
 }
 
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", async function() {
+  if (typeof I18N !== "undefined") {
+    await I18N.initDOM();
+    await I18N.setupLanguageSelector("uiLanguageSelect");
+  }
+
   // Apply theme to body once it's ready
   var currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
   applyTheme(currentTheme);

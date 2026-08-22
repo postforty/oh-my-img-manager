@@ -87,7 +87,7 @@
     chrome.storage.local.get(["oh_my_img_full_screen"], (result) => {
       const dataUrl = result.oh_my_img_full_screen;
       if (!dataUrl) {
-        alert("캡처된 전체 화면 데이터를 찾을 수 없습니다.");
+        alert(typeof chrome !== "undefined" && chrome.i18n && chrome.i18n.getMessage ? (chrome.i18n.getMessage("alertFullScreenNotFound") || "캡처된 전체 화면 데이터를 찾을 수 없습니다.") : "캡처된 전체 화면 데이터를 찾을 수 없습니다.");
         return;
       }
 

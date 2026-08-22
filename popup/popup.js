@@ -8,6 +8,13 @@ if (savedTheme === "light" || (!savedTheme && window.matchMedia && window.matchM
   document.body.classList.add("dark-theme");
 }
 
+document.addEventListener("DOMContentLoaded", async () => {
+  if (typeof I18N !== "undefined") {
+    await I18N.initDOM();
+    await I18N.setupLanguageSelector("selectLang");
+  }
+});
+
 document.getElementById("btnOpenRemover").addEventListener("click", () => {
   if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
     chrome.tabs.create({ url: chrome.runtime.getURL("remover/remover.html") });
@@ -37,14 +44,14 @@ if (btnOpenGuide) {
 
 document.getElementById("btnCaptureCurrentTab").addEventListener("click", async () => {
   if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.captureVisibleTab) {
-    alert("크롬 브라우저 환경에서만 탭 캡처가 가능합니다.");
+    alert(typeof I18N !== "undefined" ? I18N.t("alertOnlyChromeTab") : "크롬 브라우저 환경에서만 탭 캡처가 가능합니다.");
     return;
   }
 
   try {
     chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
       if (!dataUrl) {
-        alert("화면을 캡처할 수 없습니다. 웹페이지 탭에서 시도해 주세요.");
+        alert(typeof I18N !== "undefined" ? I18N.t("alertCannotCapture") : "화면을 캡처할 수 없습니다. 웹페이지 탭에서 시도해 주세요.");
         return;
       }
 
@@ -56,7 +63,7 @@ document.getElementById("btnCaptureCurrentTab").addEventListener("click", async 
             files: ["popup/selection-overlay.js"]
           }, () => {
             if (chrome.runtime.lastError) {
-              alert("현재 페이지에는 캡처 기능을 사용할 수 없습니다. 일반 웹페이지에서 시도해주세요.");
+              alert(typeof I18N !== "undefined" ? I18N.t("alertCaptureNotAllowed") : "현재 페이지에는 캡처 기능을 사용할 수 없습니다. 일반 웹페이지에서 시도해주세요.");
               console.error(chrome.runtime.lastError.message);
             } else {
               window.close();
@@ -67,6 +74,7 @@ document.getElementById("btnCaptureCurrentTab").addEventListener("click", async 
     });
   } catch (err) {
     console.error("Tab capture error:", err);
-    alert("탭 캡처 중 오류가 발생했습니다: " + err.message);
+    alert(typeof I18N !== "undefined" ? I18N.t("alertCaptureError", [err.message]) : ("탭 캡처 중 오류가 발생했습니다: " + err.message));
   }
 });
+

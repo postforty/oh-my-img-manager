@@ -68,7 +68,14 @@ const progressText = document.getElementById("progressText");
 const progressSub = document.getElementById("progressSub");
 
 // Initialize Event Listeners
-function init() {
+async function init() {
+  if (typeof I18N !== "undefined") {
+    await I18N.initDOM();
+    await I18N.setupLanguageSelector("uiLanguageSelect", () => {
+      updateUIState();
+      loadActivePreview();
+    });
+  }
   setupTheme();
   setupDragAndDrop();
   setupFileInputs();
@@ -179,8 +186,17 @@ async function addFiles(newFiles) {
 // Update UI view states
 function updateUIState() {
   const count = state.files.length;
-  headerFileSummary.textContent = `로드된 파일: ${count}개`;
+  headerFileSummary.textContent = typeof I18N !== "undefined"
+    ? I18N.t("headerFileSummary", [count])
+    : `로드된 파일: ${count}개`;
   queueCount.textContent = count;
+
+  const queueTitleText = document.getElementById("queueTitleText");
+  if (queueTitleText) {
+    queueTitleText.innerHTML = typeof I18N !== "undefined"
+      ? I18N.t("queueHeaderTitle", [`<span id="queueCount">${count}</span>`])
+      : `파일 목록 (<span id="queueCount">${count}</span>개)`;
+  }
 
   if (count === 0) {
     dropZone.classList.remove("hidden");
@@ -204,10 +220,11 @@ function renderQueue() {
     const div = document.createElement("div");
     div.className = `queue-item ${idx === state.selectedIndex ? "active" : ""}`;
     div.title = `${item.name} (${(item.size / 1024).toFixed(1)} KB)`;
+    const removeTitle = typeof I18N !== "undefined" ? I18N.t("queueRemoveBtnTitle") : "목록에서 제거 (삭제)";
     div.innerHTML = `
       <img src="${item.thumbUrl}" alt="thumb" />
       <span class="queue-badge">${idx + 1}</span>
-      <button class="queue-remove-btn" title="목록에서 제거 (삭제)">
+      <button class="queue-remove-btn" title="${removeTitle}">
         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -260,7 +277,10 @@ function removeFile(indexToRemove) {
 
 // Load and render active preview image
 async function loadActivePreview() {
-  if (state.files.length === 0) return;
+  if (state.files.length === 0) {
+    previewInfo.textContent = typeof I18N !== "undefined" ? I18N.t("previewInfoEmpty") : "원본: - px | 결과: - px";
+    return;
+  }
 
   const currentItem = state.files[state.selectedIndex];
   if (!currentItem.bitmap) {
@@ -271,7 +291,9 @@ async function loadActivePreview() {
   const coords = CropperEngine.calculateCoordinates(bitmap.width, bitmap.height, state.ratios);
 
   // Update info bar
-  previewInfo.textContent = `원본: ${bitmap.width} x ${bitmap.height} px | 결과: ${coords.sWidth} x ${coords.sHeight} px (상하 ${coords.top}px ~ ${coords.bottom}px)`;
+  previewInfo.textContent = typeof I18N !== "undefined"
+    ? I18N.t("previewInfoText", [bitmap.width, bitmap.height, coords.sWidth, coords.sHeight, coords.top, coords.bottom])
+    : `원본: ${bitmap.width} x ${bitmap.height} px | 결과: ${coords.sWidth} x ${coords.sHeight} px (상하 ${coords.top}px ~ ${coords.bottom}px)`;
 
   if (state.activeTab === "box") {
     previewCanvas.classList.remove("hidden");
@@ -389,7 +411,7 @@ function setupSaveSettings() {
 
 function setupActionButtons() {
   btnClearAll.addEventListener("click", () => {
-    if (confirm("모든 이미지를 목록에서 제거하시겠습니까?")) {
+    if (confirm(typeof I18N !== "undefined" ? I18N.t("confirmClearAll") : "모든 이미지를 목록에서 제거하시겠습니까?")) {
       state.files.forEach((f) => URL.revokeObjectURL(f.thumbUrl));
       state.files = [];
       state.selectedIndex = 0;
@@ -423,7 +445,7 @@ function setupActionButtons() {
 async function runBatchExport() {
   if (state.files.length === 0) return;
   if (typeof JSZip === "undefined") {
-    alert("JSZip 라이브러리가 로드되지 않았습니다.");
+    alert(typeof I18N !== "undefined" ? I18N.t("alertJsZipMissing") : "JSZip 라이브러리가 로드되지 않았습니다.");
     return;
   }
 
@@ -438,8 +460,12 @@ async function runBatchExport() {
     const item = state.files[i];
     const pct = Math.round(((i + 1) / total) * 100);
     progressBarFill.style.width = `${pct}%`;
-    progressText.textContent = `${i + 1} / ${total} 처리 중 (${pct}%)`;
-    progressSub.textContent = `현재 파일: ${item.name}`;
+    progressText.textContent = typeof I18N !== "undefined"
+      ? I18N.t("progressProcessing", [i + 1, total, pct])
+      : `${i + 1} / ${total} 처리 중 (${pct}%)`;
+    progressSub.textContent = typeof I18N !== "undefined"
+      ? I18N.t("progressCurrentFile", [item.name])
+      : `현재 파일: ${item.name}`;
 
     try {
       const { blob } = await CropperEngine.cropToBlob(
@@ -462,14 +488,16 @@ async function runBatchExport() {
     await new Promise((r) => setTimeout(r, 10));
   }
 
-  progressText.textContent = `ZIP 압축 파일 생성 중...`;
+  progressText.textContent = typeof I18N !== "undefined" ? I18N.t("progressZipGenerating") : "ZIP 압축 파일 생성 중...";
   const zipBlob = await zip.generateAsync({ type: "blob" });
 
   downloadBlob(zipBlob, `cropped_images_${new Date().toISOString().slice(0, 10)}.zip`);
 
   setTimeout(() => {
     progressModal.classList.add("hidden");
-    alert(`총 ${successCount}개의 이미지가 성공적으로 크롭되어 ZIP 파일로 다운로드되었습니다!`);
+    alert(typeof I18N !== "undefined"
+      ? I18N.t("alertBatchZipSuccess", [successCount])
+      : `총 ${successCount}개의 이미지가 성공적으로 크롭되어 ZIP 파일로 다운로드되었습니다!`);
   }, 500);
 }
 

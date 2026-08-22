@@ -116,7 +116,17 @@ const cursorPosText = document.getElementById("cursorPosText");
 const toastMessage = document.getElementById("toastMessage");
 
 // Initialize App
-function init() {
+async function init() {
+  if (typeof I18N !== "undefined") {
+    await I18N.initDOM();
+    await I18N.setupLanguageSelector("uiLanguageSelect", () => {
+      if (state.originalImage) {
+        imageDimensions.textContent = `${state.fileName} (${state.originalImage.width} x ${state.originalImage.height} px)`;
+      } else {
+        imageDimensions.textContent = I18N.t("imageDimensionsEmpty");
+      }
+    });
+  }
   setupTheme();
   setupAIWorker();
   setupDragAndDrop();
@@ -197,7 +207,7 @@ function setupAIWorker() {
     aiWorker.onmessage = handleWorkerMessage;
     aiWorker.onerror = (err) => {
       console.error("Worker error:", err);
-      showToast("AI 백그라운드 워커 오류가 발생했습니다.");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastWorkerError") : "AI 백그라운드 워커 오류가 발생했습니다.");
     };
   } catch (err) {
     console.warn("Web Worker creation failed. AI features may run fallback.", err);
@@ -230,21 +240,25 @@ function handleWorkerMessage(e) {
     }
   } else if (type === "INITIATE") {
     aiProgressWrap.classList.remove("hidden");
-    aiStatusText.textContent = "준비 중...";
-    if (scanBadgeText) scanBadgeText.textContent = "준비 중...";
+    const statusMsg = typeof I18N !== "undefined" ? I18N.t("modelLoadingStatus") : "준비 중...";
+    aiStatusText.textContent = statusMsg;
+    if (scanBadgeText) scanBadgeText.textContent = statusMsg;
   } else if (type === "PROGRESS") {
     aiProgressWrap.classList.remove("hidden");
     aiProgressBarFill.style.width = `${progress}%`;
-    aiStatusText.textContent = `다운로드 중... (${progress}%)`;
-    if (scanBadgeText) scanBadgeText.textContent = `다운로드 중... (${progress}%)`;
+    const dlMsg = typeof I18N !== "undefined" ? I18N.t("modelDownloading", [progress]) : `다운로드 중... (${progress}%)`;
+    aiStatusText.textContent = dlMsg;
+    if (scanBadgeText) scanBadgeText.textContent = dlMsg;
   } else if (type === "INFERENCE_START") {
     aiProgressBarFill.style.width = `95%`;
-    aiStatusText.textContent = "배경 제거 중...";
-    if (scanBadgeText) scanBadgeText.textContent = "배경 제거 중...";
+    const infMsg = typeof I18N !== "undefined" ? I18N.t("modelInferencing") : "배경 제거 중...";
+    aiStatusText.textContent = infMsg;
+    if (scanBadgeText) scanBadgeText.textContent = infMsg;
   } else if (type === "SUCCESS") {
     aiProgressBarFill.style.width = `100%`;
-    aiStatusText.textContent = "완료!";
-    if (scanBadgeText) scanBadgeText.textContent = "완료!";
+    const doneMsg = typeof I18N !== "undefined" ? I18N.t("toastAiDone") : "완료!";
+    aiStatusText.textContent = doneMsg;
+    if (scanBadgeText) scanBadgeText.textContent = doneMsg;
 
     const maskData = new Uint8ClampedArray(maskBuffer);
     RemoverEngine.applyAlphaMask(mainCanvas, maskData, width, height, originalCanvas);
@@ -255,12 +269,12 @@ function handleWorkerMessage(e) {
     setTimeout(() => {
       aiProgressWrap.classList.add("hidden");
       setAIProcessingState(false);
-      showToast("AI 배경 제거가 완료되었습니다!", "success");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastAiDone") : "AI 배경 제거가 완료되었습니다!", "success");
     }, 400);
   } else if (type === "ERROR") {
     aiProgressWrap.classList.add("hidden");
     setAIProcessingState(false);
-    alert(`AI 배경 제거 실패: ${error}`);
+    alert(typeof I18N !== "undefined" ? I18N.t("alertAiFailed", [error]) : `AI 배경 제거 실패: ${error}`);
   }
 }
 
@@ -324,7 +338,7 @@ function setupClipboardPaste() {
         const file = item.getAsFile();
         if (file) {
           loadImageFile(file, "clipboard_image.png");
-          showToast("클립보드 이미지를 불러왔습니다!", "info");
+          showToast(typeof I18N !== "undefined" ? I18N.t("toastClipboardLoaded") : "클립보드 이미지를 불러왔습니다!", "info");
           break;
         }
       }
@@ -343,7 +357,7 @@ function setupFileInput() {
 
 async function loadImageFile(file, customName) {
   if (!file || !file.type.startsWith("image/")) {
-    alert("올바른 이미지 파일을 선택해 주세요.");
+    alert(typeof I18N !== "undefined" ? I18N.t("alertSelectValidImage") : "올바른 이미지 파일을 선택해 주세요.");
     return;
   }
 
@@ -386,7 +400,7 @@ async function loadImageFile(file, customName) {
     updateCanvasDisplay();
   } catch (err) {
     console.error("Image load failed:", err);
-    alert("이미지를 불러오는 중 오류가 발생했습니다.");
+    alert(typeof I18N !== "undefined" ? I18N.t("alertLoadImageFailed") : "이미지를 불러오는 중 오류가 발생했습니다.");
   }
 }
 
@@ -688,7 +702,7 @@ function pickColorAt(x, y) {
   state.colorKey.eyedropperActive = false;
   btnEyedropper.classList.remove("active");
   canvasStage.classList.remove("eyedropper-active");
-  showToast(`배경색이 지정되었습니다: ${hex}`, "info");
+  showToast(typeof I18N !== "undefined" ? I18N.t("toastBgSelected", [hex]) : `배경색이 지정되었습니다: ${hex}`, "info");
 }
 
 function setupColorKeyControls() {
@@ -697,7 +711,7 @@ function setupColorKeyControls() {
     btnEyedropper.classList.toggle("active", state.colorKey.eyedropperActive);
     canvasStage.classList.toggle("eyedropper-active", state.colorKey.eyedropperActive);
     if (state.colorKey.eyedropperActive) {
-      showToast("캔버스에서 제거할 배경색을 클릭하세요");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastPickGuide") : "캔버스에서 제거할 배경색을 클릭하세요");
     }
   });
 
@@ -726,7 +740,7 @@ function setupColorKeyControls() {
     historyManager.pushState(mainCanvas);
     updateUndoRedoButtons();
     updateCanvasDisplay();
-    showToast("선택 색상 투명화가 적용되었습니다!", "success");
+    showToast(typeof I18N !== "undefined" ? I18N.t("toastColorKeyApplied") : "선택 색상 투명화가 적용되었습니다!", "success");
   });
 }
 
@@ -742,14 +756,15 @@ function setupAIControls() {
     if (!state.originalImage || state.ai.isProcessing) return;
 
     if (!aiWorker) {
-      alert("AI 워커가 초기화되지 않았습니다.");
+      alert(typeof I18N !== "undefined" ? I18N.t("alertAiWorkerNotReady") : "AI 워커가 초기화되지 않았습니다.");
       return;
     }
 
-    setAIProcessingState(true, "준비 중...");
+    const prepText = typeof I18N !== "undefined" ? I18N.t("aiStatusReady") : "준비 중...";
+    setAIProcessingState(true, prepText);
     aiProgressWrap.classList.remove("hidden");
     aiProgressBarFill.style.width = "5%";
-    aiStatusText.textContent = "준비 중...";
+    aiStatusText.textContent = prepText;
 
     // Send original image data to worker
     const ctx = originalCanvas.getContext("2d", { willReadFrequently: true });
@@ -857,10 +872,10 @@ function setupActionButtons() {
       const outputFilename = `${baseName}_transparent.png`;
 
       downloadBlob(blob, outputFilename);
-      showToast("투명 PNG 다운로드가 완료되었습니다!", "success");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastPngDownloaded") : "투명 PNG 다운로드가 완료되었습니다!", "success");
     } catch (err) {
       console.error("Export failed:", err);
-      alert("다운로드 중 오류가 발생했습니다.");
+      alert(typeof I18N !== "undefined" ? I18N.t("alertDownloadFailed") : "다운로드 중 오류가 발생했습니다.");
     }
   });
 
@@ -870,19 +885,19 @@ function setupActionButtons() {
     try {
       const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, state.bgFill);
       await RemoverEngine.copyToClipboard(exportCanvas);
-      showToast("투명 이미지가 클립보드에 복사되었습니다!", "success");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastCopied") : "투명 이미지가 클립보드에 복사되었습니다!", "success");
     } catch (err) {
       console.error("Clipboard copy failed:", err);
-      showToast("클립보드 복사 실패: " + err.message, "info");
+      showToast((typeof I18N !== "undefined" ? I18N.t("toastCopyFailed", [err.message]) : ("클립보드 복사 실패: " + err.message)), "info");
     }
   });
 
   btnResetImage.addEventListener("click", () => {
-    if (confirm("현재 편집 중인 이미지를 닫고 새 이미지를 여시겠습니까?")) {
+    if (confirm(typeof I18N !== "undefined" ? I18N.t("confirmResetImage") : "현재 편집 중인 이미지를 닫고 새 이미지를 여시겠습니까?")) {
       state.originalImage = null;
       editorWorkspace.classList.add("hidden");
       dropZone.classList.remove("hidden");
-      imageDimensions.textContent = "이미지를 불러와 주세요";
+      imageDimensions.textContent = typeof I18N !== "undefined" ? I18N.t("imageDimensionsEmpty") : "이미지를 불러와 주세요";
       enableControls(false);
     }
   });

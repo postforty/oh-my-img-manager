@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Oh My Image Manager - Smart Image Crop & Background Remover Studio",
+    "description": "Extension Name"
+  },
+  "extDescription": {
+    "message": "Batch image crop, ZIP compression, and on-device AI real-time background removal.",
+    "description": "Extension Description"
+  },
+  "alertFullScreenNotFound": {
+    "message": "Captured full screen data not found.",
+    "description": "Full screen data missing alert"
+  }
+}
