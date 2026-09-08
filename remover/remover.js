@@ -41,6 +41,11 @@ const state = {
     modelId: "briaai/RMBG-1.4",
     isProcessing: false,
   },
+
+  resize: {
+    lockAspectRatio: true,
+    aspectRatio: 1.0,
+  },
 };
 
 // History Manager
@@ -96,6 +101,17 @@ const valBrushSize = document.getElementById("valBrushSize");
 const rangeBrushHardness = document.getElementById("rangeBrushHardness");
 const valBrushHardness = document.getElementById("valBrushHardness");
 
+// Resize Elements
+const currentResolutionText = document.getElementById("currentResolutionText");
+const inputResizeWidth = document.getElementById("inputResizeWidth");
+const inputResizeHeight = document.getElementById("inputResizeHeight");
+const checkLockRatio = document.getElementById("checkLockRatio");
+const labelLockRatio = document.getElementById("labelLockRatio");
+const iconLock = document.getElementById("iconLock");
+const iconUnlock = document.getElementById("iconUnlock");
+const btnApplyResize = document.getElementById("btnApplyResize");
+const resizePresetChips = document.querySelectorAll(".btn-preset-chip");
+
 // Action Elements
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
@@ -139,6 +155,7 @@ async function init() {
   setupColorKeyControls();
   setupBrushControls();
   setupBgFillControls();
+  setupResizeControls();
   setupActionButtons();
   setupShortcuts();
   checkPendingCapture();
@@ -395,6 +412,19 @@ async function loadImageFile(file, customName) {
     dropZone.classList.add("hidden");
     editorWorkspace.classList.remove("hidden");
 
+    // Initialize Resize State & Inputs
+    state.resize.aspectRatio = width / height;
+    state.resize.lockAspectRatio = true;
+    if (inputResizeWidth) inputResizeWidth.value = width;
+    if (inputResizeHeight) inputResizeHeight.value = height;
+    if (currentResolutionText) currentResolutionText.textContent = `${width} x ${height}`;
+    if (checkLockRatio) checkLockRatio.checked = true;
+    if (labelLockRatio) labelLockRatio.classList.add("active");
+    if (iconLock && iconUnlock) {
+      iconLock.classList.remove("hidden");
+      iconUnlock.classList.add("hidden");
+    }
+
     enableControls(true);
     resetZoomAndFit();
     updateCanvasDisplay();
@@ -412,9 +442,19 @@ function enableControls(enabled) {
     btnDownloadPng,
     btnCopyClipboard,
     btnResetImage,
+    btnApplyResize,
+    checkLockRatio,
+    inputResizeWidth,
+    inputResizeHeight,
   ].forEach((btn) => {
     if (btn) btn.disabled = !enabled;
   });
+
+  if (resizePresetChips) {
+    resizePresetChips.forEach((chip) => {
+      chip.disabled = !enabled;
+    });
+  }
 }
 
 // -------------------------------------------------------------
@@ -837,15 +877,149 @@ function setupBgFillControls() {
 }
 
 // -------------------------------------------------------------
+// Image Resize Controls
+// -------------------------------------------------------------
+function setupResizeControls() {
+  if (!inputResizeWidth || !inputResizeHeight || !btnApplyResize) return;
+
+  // Width Input Change
+  inputResizeWidth.addEventListener("input", () => {
+    if (!state.resize.lockAspectRatio) return;
+    const w = parseInt(inputResizeWidth.value, 10);
+    if (w > 0 && state.resize.aspectRatio > 0) {
+      inputResizeHeight.value = Math.max(1, Math.round(w / state.resize.aspectRatio));
+    }
+  });
+
+  // Height Input Change
+  inputResizeHeight.addEventListener("input", () => {
+    if (!state.resize.lockAspectRatio) return;
+    const h = parseInt(inputResizeHeight.value, 10);
+    if (h > 0 && state.resize.aspectRatio > 0) {
+      inputResizeWidth.value = Math.max(1, Math.round(h * state.resize.aspectRatio));
+    }
+  });
+
+  // Aspect Ratio Lock Checkbox Change
+  if (checkLockRatio) {
+    checkLockRatio.addEventListener("change", () => {
+      state.resize.lockAspectRatio = checkLockRatio.checked;
+      if (labelLockRatio) labelLockRatio.classList.toggle("active", state.resize.lockAspectRatio);
+      if (iconLock && iconUnlock) {
+        iconLock.classList.toggle("hidden", !state.resize.lockAspectRatio);
+        iconUnlock.classList.toggle("hidden", state.resize.lockAspectRatio);
+      }
+      const w = parseInt(inputResizeWidth.value, 10);
+      const h = parseInt(inputResizeHeight.value, 10);
+      if (w > 0 && h > 0) {
+        state.resize.aspectRatio = w / h;
+      }
+    });
+  }
+
+  // Preset Chips (Scale: 100%, 75%, 50%, 25%)
+  if (resizePresetChips) {
+    resizePresetChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if (!state.originalImage) return;
+        const origW = state.originalImage.width;
+        const origH = state.originalImage.height;
+
+        if (chip.dataset.scale) {
+          const scale = parseFloat(chip.dataset.scale);
+          const nextW = Math.max(1, Math.round(origW * scale));
+          const nextH = Math.max(1, Math.round(origH * scale));
+          inputResizeWidth.value = nextW;
+          inputResizeHeight.value = nextH;
+        }
+      });
+    });
+  }
+
+  // Apply Resize
+  btnApplyResize.addEventListener("click", applyResize);
+}
+
+function applyResize() {
+  if (!state.originalImage) return;
+
+  const targetW = parseInt(inputResizeWidth.value, 10);
+  const targetH = parseInt(inputResizeHeight.value, 10);
+
+  if (isNaN(targetW) || isNaN(targetH) || targetW <= 0 || targetH <= 0) {
+    alert(typeof I18N !== "undefined" ? I18N.t("alertInvalidDimensions") : "유효한 너비와 높이를 입력해 주세요.");
+    return;
+  }
+
+  if (targetW === mainCanvas.width && targetH === mainCanvas.height) {
+    return;
+  }
+
+  // High quality step-down resize on both main active canvas and pristine original canvas
+  const resizedMain = RemoverEngine.resizeCanvas(mainCanvas, targetW, targetH);
+  const resizedOriginal = RemoverEngine.resizeCanvas(originalCanvas, targetW, targetH);
+
+  syncCanvasDimensions(targetW, targetH, resizedMain, resizedOriginal);
+
+  historyManager.pushState(mainCanvas);
+  updateUndoRedoButtons();
+  updateCanvasDisplay();
+  resetZoomAndFit();
+
+  showToast(typeof I18N !== "undefined" ? I18N.t("toastResizeSuccess", [targetW, targetH]) : `이미지 크기가 ${targetW} x ${targetH} px로 조절되었습니다!`, "success");
+}
+
+function syncCanvasDimensions(width, height, newMainCanvas = null, newOriginalCanvas = null) {
+  // Update mainCanvas
+  mainCanvas.width = width;
+  mainCanvas.height = height;
+  if (newMainCanvas) {
+    const mainCtx = mainCanvas.getContext("2d", { willReadFrequently: true });
+    mainCtx.drawImage(newMainCanvas, 0, 0);
+  }
+
+  // Update originalCanvas
+  originalCanvas.width = width;
+  originalCanvas.height = height;
+  if (newOriginalCanvas) {
+    const origCtx = originalCanvas.getContext("2d", { willReadFrequently: true });
+    origCtx.drawImage(newOriginalCanvas, 0, 0);
+  }
+
+  // Update sub-canvases
+  bgCanvas.width = width;
+  bgCanvas.height = height;
+  splitOverlayCanvas.width = width;
+  splitOverlayCanvas.height = height;
+
+  // Update DOM transform layer size
+  canvasTransformLayer.style.width = `${width}px`;
+  canvasTransformLayer.style.height = `${height}px`;
+
+  // Update inputs & info tags
+  if (inputResizeWidth) inputResizeWidth.value = width;
+  if (inputResizeHeight) inputResizeHeight.value = height;
+  state.resize.aspectRatio = width / height;
+  if (currentResolutionText) currentResolutionText.textContent = `${width} x ${height}`;
+  imageDimensions.textContent = `${state.fileName} (${width} x ${height} px)`;
+}
+
+// -------------------------------------------------------------
 // Action Buttons & Shortcuts
 // -------------------------------------------------------------
 function setupActionButtons() {
   btnUndo.addEventListener("click", () => {
     const prev = historyManager.undo(mainCanvas);
     if (prev) {
-      const ctx = mainCanvas.getContext("2d");
-      ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-      ctx.drawImage(prev, 0, 0);
+      if (prev.width !== mainCanvas.width || prev.height !== mainCanvas.height) {
+        const restoredOriginal = RemoverEngine.resizeCanvas(originalCanvas, prev.width, prev.height);
+        syncCanvasDimensions(prev.width, prev.height, prev, restoredOriginal);
+        resetZoomAndFit();
+      } else {
+        const ctx = mainCanvas.getContext("2d", { willReadFrequently: true });
+        ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        ctx.drawImage(prev, 0, 0);
+      }
       updateUndoRedoButtons();
       updateCanvasDisplay();
     }
@@ -854,9 +1028,15 @@ function setupActionButtons() {
   btnRedo.addEventListener("click", () => {
     const next = historyManager.redo(mainCanvas);
     if (next) {
-      const ctx = mainCanvas.getContext("2d");
-      ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-      ctx.drawImage(next, 0, 0);
+      if (next.width !== mainCanvas.width || next.height !== mainCanvas.height) {
+        const restoredOriginal = RemoverEngine.resizeCanvas(originalCanvas, next.width, next.height);
+        syncCanvasDimensions(next.width, next.height, next, restoredOriginal);
+        resetZoomAndFit();
+      } else {
+        const ctx = mainCanvas.getContext("2d", { willReadFrequently: true });
+        ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        ctx.drawImage(next, 0, 0);
+      }
       updateUndoRedoButtons();
       updateCanvasDisplay();
     }

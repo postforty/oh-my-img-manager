@@ -316,7 +316,55 @@ class RemoverEngine {
   }
 
   /**
-   * 5. Converts canvas to Blob
+   * 5. Resizes canvas with high-quality step-down (mipmap) filtering and alpha preservation
+   *
+   * @param {HTMLCanvasElement} sourceCanvas
+   * @param {number} targetWidth
+   * @param {number} targetHeight
+   * @returns {HTMLCanvasElement}
+   */
+  static resizeCanvas(sourceCanvas, targetWidth, targetHeight) {
+    targetWidth = Math.max(1, Math.round(targetWidth));
+    targetHeight = Math.max(1, Math.round(targetHeight));
+
+    if (sourceCanvas.width === targetWidth && sourceCanvas.height === targetHeight) {
+      return this.cloneCanvas(sourceCanvas);
+    }
+
+    let curCanvas = sourceCanvas;
+    let curWidth = sourceCanvas.width;
+    let curHeight = sourceCanvas.height;
+
+    // Step-down downscaling for smooth results without aliasing when downscaling by > 50%
+    while (curWidth * 0.5 >= targetWidth && curHeight * 0.5 >= targetHeight) {
+      const nextW = Math.round(curWidth * 0.5);
+      const nextH = Math.round(curHeight * 0.5);
+      const tmpCanvas = document.createElement("canvas");
+      tmpCanvas.width = nextW;
+      tmpCanvas.height = nextH;
+      const tmpCtx = tmpCanvas.getContext("2d", { willReadFrequently: true });
+      tmpCtx.imageSmoothingEnabled = true;
+      tmpCtx.imageSmoothingQuality = "high";
+      tmpCtx.drawImage(curCanvas, 0, 0, nextW, nextH);
+      curCanvas = tmpCanvas;
+      curWidth = nextW;
+      curHeight = nextH;
+    }
+
+    // Final scaling to exact target dimensions
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = targetWidth;
+    outCanvas.height = targetHeight;
+    const outCtx = outCanvas.getContext("2d", { willReadFrequently: true });
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = "high";
+    outCtx.drawImage(curCanvas, 0, 0, targetWidth, targetHeight);
+
+    return outCanvas;
+  }
+
+  /**
+   * 6. Converts canvas to Blob
    */
   static async toBlob(canvas, format = "image/png", quality = 1.0) {
     return new Promise((resolve, reject) => {
