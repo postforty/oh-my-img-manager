@@ -42,6 +42,14 @@ const state = {
     isProcessing: false,
   },
 
+  crop: {
+    isActive: false,
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    currentRect: null,
+  },
+
   resize: {
     lockAspectRatio: true,
     aspectRatio: 1.0,
@@ -72,6 +80,9 @@ const bgCanvas = document.getElementById("bgCanvas");
 const splitOverlayCanvas = document.getElementById("splitOverlayCanvas");
 const splitDivider = document.getElementById("splitDivider");
 const brushCursor = document.getElementById("brushCursor");
+const cropOverlayLayer = document.getElementById("cropOverlayLayer");
+const cropSelectionBox = document.getElementById("cropSelectionBox");
+const cropInfoBadge = document.getElementById("cropInfoBadge");
 const aiScanOverlay = document.getElementById("aiScanOverlay");
 const scanBadgeText = document.getElementById("scanBadgeText");
 
@@ -100,6 +111,13 @@ const rangeBrushSize = document.getElementById("rangeBrushSize");
 const valBrushSize = document.getElementById("valBrushSize");
 const rangeBrushHardness = document.getElementById("rangeBrushHardness");
 const valBrushHardness = document.getElementById("valBrushHardness");
+
+// Crop & Trim Elements
+const btnAutoTrim = document.getElementById("btnAutoTrim");
+const btnManualCrop = document.getElementById("btnManualCrop");
+const cropActionGroup = document.getElementById("cropActionGroup");
+const btnApplyCrop = document.getElementById("btnApplyCrop");
+const btnCancelCrop = document.getElementById("btnCancelCrop");
 
 // Resize Elements
 const currentResolutionText = document.getElementById("currentResolutionText");
@@ -155,6 +173,7 @@ async function init() {
   setupColorKeyControls();
   setupBrushControls();
   setupBgFillControls();
+  setupCropControls();
   setupResizeControls();
   setupActionButtons();
   setupShortcuts();
@@ -280,7 +299,7 @@ function handleWorkerMessage(e) {
     const maskData = new Uint8ClampedArray(maskBuffer);
     RemoverEngine.applyAlphaMask(mainCanvas, maskData, width, height, originalCanvas);
 
-    historyManager.pushState(mainCanvas);
+    historyManager.pushState(mainCanvas, originalCanvas);
     updateCanvasDisplay();
 
     setTimeout(() => {
@@ -402,9 +421,10 @@ async function loadImageFile(file, customName) {
     const mainCtx = mainCanvas.getContext("2d", { willReadFrequently: true });
     mainCtx.drawImage(image, 0, 0);
 
-    // Reset History
+    // Reset History & Crop State
+    setCropMode(false);
     historyManager.clear();
-    historyManager.pushState(mainCanvas);
+    historyManager.pushState(mainCanvas, originalCanvas);
     updateUndoRedoButtons();
 
     // UI Updates
@@ -442,6 +462,8 @@ function enableControls(enabled) {
     btnDownloadPng,
     btnCopyClipboard,
     btnResetImage,
+    btnAutoTrim,
+    btnManualCrop,
     btnApplyResize,
     checkLockRatio,
     inputResizeWidth,
@@ -622,102 +644,133 @@ function setupCanvasInteractions() {
     return { x, y };
   };
 
-  // Cursor move handler
-  canvasStage.addEventListener("mousemove", (e) => {
-    if (!state.originalImage) return;
-    const { x, y } = getCanvasCoords(e);
-    cursorPosText.textContent = `좌표: ${x}, ${y} px`;
+    // Cursor move handler
+    canvasStage.addEventListener("mousemove", (e) => {
+      if (!state.originalImage) return;
+      const { x, y } = getCanvasCoords(e);
+      cursorPosText.textContent = `좌표: ${x}, ${y} px`;
 
-    // Hide brush cursor and ignore brush if AI is processing
-    if (state.ai.isProcessing) {
-      brushCursor.classList.add("hidden");
-      return;
-    }
-
-    // Update Floating Brush Cursor position & size
-    if (state.activeTool === "brush" && !state.colorKey.eyedropperActive && !state.isSpacePressed) {
-      brushCursor.classList.remove("hidden");
-      const rect = mainCanvas.getBoundingClientRect();
-      const localX = (x / mainCanvas.width) * mainCanvas.width;
-      const localY = (y / mainCanvas.height) * mainCanvas.height;
-      brushCursor.style.left = `${localX}px`;
-      brushCursor.style.top = `${localY}px`;
-      brushCursor.style.width = `${state.brush.size}px`;
-      brushCursor.style.height = `${state.brush.size}px`;
-    } else {
-      brushCursor.classList.add("hidden");
-    }
-
-    // Handle Split View Divider Drag
-    if (state.isSplitDragging) {
-      const rect = mainCanvas.getBoundingClientRect();
-      const pos = Math.max(0.01, Math.min(0.99, (e.clientX - rect.left) / rect.width));
-      state.splitPos = pos;
-      updateCanvasDisplay();
-      return;
-    }
-
-    // Handle Brush Drawing
-    if (state.brush.isDrawing && state.activeTool === "brush" && !state.isPanning) {
-      RemoverEngine.applyBrushStroke(mainCanvas, originalCanvas, x, y, {
-        size: state.brush.size,
-        hardness: state.brush.hardness,
-        mode: state.brush.mode,
-      });
-      updateCanvasDisplay();
-    }
-  });
-
-  canvasStage.addEventListener("mouseleave", () => {
-    brushCursor.classList.add("hidden");
-    cursorPosText.textContent = "좌표: -";
-  });
-
-  // Mouse Down
-  canvasStage.addEventListener("mousedown", (e) => {
-    if (!state.originalImage || e.button !== 0 || state.isSpacePressed || state.ai.isProcessing) return;
-
-    // Check if clicked near Split Divider
-    if (state.viewMode === "split") {
-      const rect = mainCanvas.getBoundingClientRect();
-      const dividerX = rect.left + rect.width * state.splitPos;
-      if (Math.abs(e.clientX - dividerX) < 16) {
-        state.isSplitDragging = true;
+      // Hide brush cursor and ignore brush if AI is processing
+      if (state.ai.isProcessing) {
+        brushCursor.classList.add("hidden");
         return;
       }
-    }
 
-    const { x, y } = getCanvasCoords(e);
+      // Handle Manual Crop Dragging
+      if (state.crop.isActive) {
+        brushCursor.classList.add("hidden");
+        if (state.crop.isDragging) {
+          const clampedX = Math.max(0, Math.min(mainCanvas.width, x));
+          const clampedY = Math.max(0, Math.min(mainCanvas.height, y));
+          updateCropSelectionBox(state.crop.startX, state.crop.startY, clampedX, clampedY);
+        }
+        return;
+      }
 
-    // Eyedropper Pickup
-    if (state.colorKey.eyedropperActive) {
-      pickColorAt(x, y);
-      return;
-    }
+      // Update Floating Brush Cursor position & size
+      if (state.activeTool === "brush" && !state.colorKey.eyedropperActive && !state.isSpacePressed) {
+        brushCursor.classList.remove("hidden");
+        const rect = mainCanvas.getBoundingClientRect();
+        const localX = (x / mainCanvas.width) * mainCanvas.width;
+        const localY = (y / mainCanvas.height) * mainCanvas.height;
+        brushCursor.style.left = `${localX}px`;
+        brushCursor.style.top = `${localY}px`;
+        brushCursor.style.width = `${state.brush.size}px`;
+        brushCursor.style.height = `${state.brush.size}px`;
+      } else {
+        brushCursor.classList.add("hidden");
+      }
 
-    // Start Brush Drawing
-    if (state.activeTool === "brush") {
-      state.brush.isDrawing = true;
-      RemoverEngine.applyBrushStroke(mainCanvas, originalCanvas, x, y, {
-        size: state.brush.size,
-        hardness: state.brush.hardness,
-        mode: state.brush.mode,
-      });
-      updateCanvasDisplay();
-    }
-  });
+      // Handle Split View Divider Drag
+      if (state.isSplitDragging) {
+        const rect = mainCanvas.getBoundingClientRect();
+        const pos = Math.max(0.01, Math.min(0.99, (e.clientX - rect.left) / rect.width));
+        state.splitPos = pos;
+        updateCanvasDisplay();
+        return;
+      }
 
-  // Mouse Up
-  window.addEventListener("mouseup", () => {
-    if (state.isSplitDragging) {
-      state.isSplitDragging = false;
-    }
-    if (state.brush.isDrawing) {
-      state.brush.isDrawing = false;
-      historyManager.pushState(mainCanvas);
-      updateUndoRedoButtons();
-    }
-  });
+      // Handle Brush Drawing
+      if (state.brush.isDrawing && state.activeTool === "brush" && !state.isPanning) {
+        RemoverEngine.applyBrushStroke(mainCanvas, originalCanvas, x, y, {
+          size: state.brush.size,
+          hardness: state.brush.hardness,
+          mode: state.brush.mode,
+        });
+        updateCanvasDisplay();
+      }
+    });
+
+    canvasStage.addEventListener("mouseleave", () => {
+      brushCursor.classList.add("hidden");
+      cursorPosText.textContent = "좌표: -";
+    });
+
+    // Mouse Down
+    canvasStage.addEventListener("mousedown", (e) => {
+      if (!state.originalImage || e.button !== 0 || state.isSpacePressed || state.ai.isProcessing) return;
+
+      const { x, y } = getCanvasCoords(e);
+
+      // Handle Manual Crop Box Start
+      if (state.crop.isActive) {
+        state.crop.isDragging = true;
+        const clampedX = Math.max(0, Math.min(mainCanvas.width, x));
+        const clampedY = Math.max(0, Math.min(mainCanvas.height, y));
+        state.crop.startX = clampedX;
+        state.crop.startY = clampedY;
+        cropSelectionBox.classList.remove("hidden");
+        updateCropSelectionBox(clampedX, clampedY, clampedX, clampedY);
+        return;
+      }
+
+      // Check if clicked near Split Divider
+      if (state.viewMode === "split") {
+        const rect = mainCanvas.getBoundingClientRect();
+        const dividerX = rect.left + rect.width * state.splitPos;
+        if (Math.abs(e.clientX - dividerX) < 16) {
+          state.isSplitDragging = true;
+          return;
+        }
+      }
+
+      // Eyedropper Pickup
+      if (state.colorKey.eyedropperActive) {
+        pickColorAt(x, y);
+        return;
+      }
+
+      // Start Brush Drawing
+      if (state.activeTool === "brush") {
+        state.brush.isDrawing = true;
+        RemoverEngine.applyBrushStroke(mainCanvas, originalCanvas, x, y, {
+          size: state.brush.size,
+          hardness: state.brush.hardness,
+          mode: state.brush.mode,
+        });
+        updateCanvasDisplay();
+      }
+    });
+
+    // Mouse Up
+    window.addEventListener("mouseup", () => {
+      if (state.crop.isDragging) {
+        state.crop.isDragging = false;
+        if (state.crop.currentRect && state.crop.currentRect.width >= 5 && state.crop.currentRect.height >= 5) {
+          btnApplyCrop.disabled = false;
+        } else {
+          btnApplyCrop.disabled = true;
+        }
+      }
+      if (state.isSplitDragging) {
+        state.isSplitDragging = false;
+      }
+      if (state.brush.isDrawing) {
+        state.brush.isDrawing = false;
+        historyManager.pushState(mainCanvas, originalCanvas);
+        updateUndoRedoButtons();
+      }
+    });
 }
 
 // -------------------------------------------------------------
@@ -751,7 +804,20 @@ function setupColorKeyControls() {
     btnEyedropper.classList.toggle("active", state.colorKey.eyedropperActive);
     canvasStage.classList.toggle("eyedropper-active", state.colorKey.eyedropperActive);
     if (state.colorKey.eyedropperActive) {
+      if (state.crop && state.crop.isActive) {
+        setCropMode(false);
+      }
+      if (brushCursor) brushCursor.classList.add("hidden");
       showToast(typeof I18N !== "undefined" ? I18N.t("toastPickGuide") : "캔버스에서 제거할 배경색을 클릭하세요");
+    }
+  });
+
+  // Escape key cancels eyedropper mode
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.colorKey.eyedropperActive) {
+      state.colorKey.eyedropperActive = false;
+      btnEyedropper.classList.remove("active");
+      canvasStage.classList.remove("eyedropper-active");
     }
   });
 
@@ -777,7 +843,7 @@ function setupColorKeyControls() {
       contiguous: false,
     });
 
-    historyManager.pushState(mainCanvas);
+    historyManager.pushState(mainCanvas, originalCanvas);
     updateUndoRedoButtons();
     updateCanvasDisplay();
     showToast(typeof I18N !== "undefined" ? I18N.t("toastColorKeyApplied") : "선택 색상 투명화가 적용되었습니다!", "success");
@@ -940,6 +1006,183 @@ function setupResizeControls() {
   btnApplyResize.addEventListener("click", applyResize);
 }
 
+// -------------------------------------------------------------
+// Crop & Trim Controls
+// -------------------------------------------------------------
+function setupCropControls() {
+  // Auto Trim
+  if (btnAutoTrim) {
+    btnAutoTrim.addEventListener("click", applyAutoTrim);
+  }
+
+  // Manual Crop Toggle
+  if (btnManualCrop) {
+    btnManualCrop.addEventListener("click", () => {
+      if (!state.originalImage) return;
+      setCropMode(!state.crop.isActive);
+    });
+  }
+
+  // Apply Crop Button
+  if (btnApplyCrop) {
+    btnApplyCrop.addEventListener("click", applyManualCrop);
+  }
+
+  // Cancel Crop Button
+  if (btnCancelCrop) {
+    btnCancelCrop.addEventListener("click", () => {
+      setCropMode(false);
+    });
+  }
+
+  // Escape key cancels crop mode
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.crop.isActive) {
+      setCropMode(false);
+    }
+  });
+}
+
+function setCropMode(active) {
+  state.crop.isActive = active;
+  state.crop.isDragging = false;
+  state.crop.currentRect = null;
+
+  if (btnManualCrop) {
+    btnManualCrop.classList.toggle("active", active);
+  }
+  if (cropActionGroup) {
+    cropActionGroup.classList.toggle("hidden", !active);
+  }
+  if (cropOverlayLayer) {
+    cropOverlayLayer.classList.toggle("hidden", !active);
+  }
+  if (cropSelectionBox) {
+    cropSelectionBox.classList.add("hidden");
+  }
+  if (btnApplyCrop) {
+    btnApplyCrop.disabled = true;
+  }
+
+  if (active) {
+    if (state.colorKey && state.colorKey.eyedropperActive) {
+      state.colorKey.eyedropperActive = false;
+      if (btnEyedropper) btnEyedropper.classList.remove("active");
+      canvasStage.classList.remove("eyedropper-active");
+    }
+    canvasStage.classList.add("crop-mode");
+    if (brushCursor) brushCursor.classList.add("hidden");
+    showToast(
+      typeof I18N !== "undefined"
+        ? I18N.t("toastCropModeHint")
+        : "캔버스에서 자르고자 하는 영역을 마우스로 드래그하세요.",
+      "info"
+    );
+  } else {
+    canvasStage.classList.remove("crop-mode");
+  }
+}
+
+function updateCropSelectionBox(x1, y1, x2, y2) {
+  const left = Math.min(x1, x2);
+  const top = Math.min(y1, y2);
+  const width = Math.abs(x2 - x1);
+  const height = Math.abs(y2 - y1);
+
+  state.crop.currentRect = { x: left, y: top, width, height };
+
+  if (cropSelectionBox) {
+    cropSelectionBox.style.left = `${left}px`;
+    cropSelectionBox.style.top = `${top}px`;
+    cropSelectionBox.style.width = `${width}px`;
+    cropSelectionBox.style.height = `${height}px`;
+  }
+
+  if (cropInfoBadge) {
+    cropInfoBadge.textContent = `${width} × ${height}`;
+  }
+
+  if (btnApplyCrop) {
+    btnApplyCrop.disabled = width < 5 || height < 5;
+  }
+}
+
+function applyManualCrop() {
+  if (!state.originalImage || !state.crop.currentRect) return;
+
+  const rect = state.crop.currentRect;
+  if (rect.width < 5 || rect.height < 5) return;
+
+  // Crop mainCanvas and originalCanvas synchronously
+  const croppedMain = RemoverEngine.cropCanvas(mainCanvas, rect);
+  const croppedOriginal = RemoverEngine.cropCanvas(originalCanvas, rect);
+
+  syncCanvasDimensions(rect.width, rect.height, croppedMain, croppedOriginal);
+
+  historyManager.pushState(mainCanvas, originalCanvas);
+  updateUndoRedoButtons();
+  updateCanvasDisplay();
+  resetZoomAndFit();
+
+  setCropMode(false);
+
+  showToast(
+    typeof I18N !== "undefined"
+      ? I18N.t("toastCropSuccess", [rect.width, rect.height])
+      : `선택 영역으로 이미지가 잘라졌습니다! (${rect.width} x ${rect.height} px)`,
+    "success"
+  );
+}
+
+function applyAutoTrim() {
+  if (!state.originalImage) return;
+
+  const result = RemoverEngine.trimCanvas(mainCanvas, { padding: 0 });
+
+  if (result.isEmpty) {
+    alert(typeof I18N !== "undefined" ? I18N.t("alertTrimAllTransparent") : "이미지에 피사체가 없거나 전체가 투명합니다.");
+    return;
+  }
+
+  if (result.isAlreadyTrimmed) {
+    showToast(typeof I18N !== "undefined" ? I18N.t("toastNoTrimNeeded") : "자르고 남은 투명 여백이 없습니다.", "info");
+    return;
+  }
+
+  const { trimmedCanvas, bounds } = result;
+
+  // Crop originalCanvas to match the exact same bounding box for restore brush and split view
+  const croppedOriginal = document.createElement("canvas");
+  croppedOriginal.width = bounds.width;
+  croppedOriginal.height = bounds.height;
+  const origCtx = croppedOriginal.getContext("2d", { willReadFrequently: true });
+  origCtx.drawImage(
+    originalCanvas,
+    bounds.x,
+    bounds.y,
+    bounds.width,
+    bounds.height,
+    0,
+    0,
+    bounds.width,
+    bounds.height
+  );
+
+  syncCanvasDimensions(bounds.width, bounds.height, trimmedCanvas, croppedOriginal);
+
+  historyManager.pushState(mainCanvas, originalCanvas);
+  updateUndoRedoButtons();
+  updateCanvasDisplay();
+  resetZoomAndFit();
+
+  showToast(
+    typeof I18N !== "undefined"
+      ? I18N.t("toastTrimSuccess", [bounds.width, bounds.height])
+      : `투명 여백이 제거되었습니다! (${bounds.width} x ${bounds.height} px)`,
+    "success"
+  );
+}
+
 function applyResize() {
   if (!state.originalImage) return;
 
@@ -961,7 +1204,7 @@ function applyResize() {
 
   syncCanvasDimensions(targetW, targetH, resizedMain, resizedOriginal);
 
-  historyManager.pushState(mainCanvas);
+  historyManager.pushState(mainCanvas, originalCanvas);
   updateUndoRedoButtons();
   updateCanvasDisplay();
   resetZoomAndFit();
@@ -1009,16 +1252,23 @@ function syncCanvasDimensions(width, height, newMainCanvas = null, newOriginalCa
 // -------------------------------------------------------------
 function setupActionButtons() {
   btnUndo.addEventListener("click", () => {
-    const prev = historyManager.undo(mainCanvas);
-    if (prev) {
+    const snapshot = historyManager.undo(mainCanvas);
+    if (snapshot) {
+      const prev = snapshot.main || snapshot;
+      const prevOrig = snapshot.original;
       if (prev.width !== mainCanvas.width || prev.height !== mainCanvas.height) {
-        const restoredOriginal = RemoverEngine.resizeCanvas(originalCanvas, prev.width, prev.height);
+        const restoredOriginal = prevOrig || RemoverEngine.resizeCanvas(originalCanvas, prev.width, prev.height);
         syncCanvasDimensions(prev.width, prev.height, prev, restoredOriginal);
         resetZoomAndFit();
       } else {
         const ctx = mainCanvas.getContext("2d", { willReadFrequently: true });
         ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
         ctx.drawImage(prev, 0, 0);
+        if (prevOrig) {
+          const origCtx = originalCanvas.getContext("2d", { willReadFrequently: true });
+          origCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+          origCtx.drawImage(prevOrig, 0, 0);
+        }
       }
       updateUndoRedoButtons();
       updateCanvasDisplay();
@@ -1026,16 +1276,23 @@ function setupActionButtons() {
   });
 
   btnRedo.addEventListener("click", () => {
-    const next = historyManager.redo(mainCanvas);
-    if (next) {
+    const snapshot = historyManager.redo(mainCanvas);
+    if (snapshot) {
+      const next = snapshot.main || snapshot;
+      const nextOrig = snapshot.original;
       if (next.width !== mainCanvas.width || next.height !== mainCanvas.height) {
-        const restoredOriginal = RemoverEngine.resizeCanvas(originalCanvas, next.width, next.height);
+        const restoredOriginal = nextOrig || RemoverEngine.resizeCanvas(originalCanvas, next.width, next.height);
         syncCanvasDimensions(next.width, next.height, next, restoredOriginal);
         resetZoomAndFit();
       } else {
         const ctx = mainCanvas.getContext("2d", { willReadFrequently: true });
         ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
         ctx.drawImage(next, 0, 0);
+        if (nextOrig) {
+          const origCtx = originalCanvas.getContext("2d", { willReadFrequently: true });
+          origCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+          origCtx.drawImage(nextOrig, 0, 0);
+        }
       }
       updateUndoRedoButtons();
       updateCanvasDisplay();
@@ -1074,6 +1331,7 @@ function setupActionButtons() {
 
   btnResetImage.addEventListener("click", () => {
     if (confirm(typeof I18N !== "undefined" ? I18N.t("confirmResetImage") : "현재 편집 중인 이미지를 닫고 새 이미지를 여시겠습니까?")) {
+      setCropMode(false);
       state.originalImage = null;
       editorWorkspace.classList.add("hidden");
       dropZone.classList.remove("hidden");

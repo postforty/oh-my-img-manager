@@ -364,7 +364,101 @@ class RemoverEngine {
   }
 
   /**
-   * 6. Converts canvas to Blob
+   * 6. Automatically crops transparent margins around subject (Trim / Auto-crop)
+   *
+   * @param {HTMLCanvasElement} sourceCanvas
+   * @param {Object} options - { padding: 0, alphaThreshold: 0 }
+   * @returns {Object} - { isEmpty, trimmedCanvas, bounds, isAlreadyTrimmed }
+   */
+  static trimCanvas(sourceCanvas, options = {}) {
+    const { padding = 0, alphaThreshold = 0 } = options;
+    const width = sourceCanvas.width;
+    const height = sourceCanvas.height;
+
+    const ctx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    // Fast pixel scan for non-transparent bounding box
+    for (let y = 0; y < height; y++) {
+      const rowOffset = y * width * 4;
+      for (let x = 0; x < width; x++) {
+        const alpha = data[rowOffset + x * 4 + 3];
+        if (alpha > alphaThreshold) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    // All pixels are transparent (empty image)
+    if (maxX === -1) {
+      return {
+        isEmpty: true,
+        trimmedCanvas: this.cloneCanvas(sourceCanvas),
+        bounds: { x: 0, y: 0, width, height },
+        isAlreadyTrimmed: true,
+      };
+    }
+
+    // Apply optional padding
+    const pad = Math.max(0, Math.round(padding));
+    const cropX = Math.max(0, minX - pad);
+    const cropY = Math.max(0, minY - pad);
+    const cropRight = Math.min(width - 1, maxX + pad);
+    const cropBottom = Math.min(height - 1, maxY + pad);
+    const cropW = cropRight - cropX + 1;
+    const cropH = cropBottom - cropY + 1;
+
+    // Check if image is already trimmed
+    const isAlreadyTrimmed = (cropX === 0 && cropY === 0 && cropW === width && cropH === height);
+
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = cropW;
+    outCanvas.height = cropH;
+    const outCtx = outCanvas.getContext("2d", { willReadFrequently: true });
+    outCtx.drawImage(sourceCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    return {
+      isEmpty: false,
+      trimmedCanvas: outCanvas,
+      bounds: { x: cropX, y: cropY, width: cropW, height: cropH },
+      isAlreadyTrimmed,
+    };
+  }
+
+  /**
+   * 7. Crops canvas to specific rectangle { x, y, width, height }
+   *
+   * @param {HTMLCanvasElement} sourceCanvas
+   * @param {Object} rect - { x, y, width, height }
+   * @returns {HTMLCanvasElement}
+   */
+  static cropCanvas(sourceCanvas, rect) {
+    const { x, y, width, height } = rect;
+    const cropX = Math.max(0, Math.min(Math.round(x), sourceCanvas.width - 1));
+    const cropY = Math.max(0, Math.min(Math.round(y), sourceCanvas.height - 1));
+    const cropW = Math.max(1, Math.min(Math.round(width), sourceCanvas.width - cropX));
+    const cropH = Math.max(1, Math.min(Math.round(height), sourceCanvas.height - cropY));
+
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = cropW;
+    outCanvas.height = cropH;
+    const outCtx = outCanvas.getContext("2d", { willReadFrequently: true });
+    outCtx.drawImage(sourceCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    return outCanvas;
+  }
+
+  /**
+   * 8. Converts canvas to Blob
    */
   static async toBlob(canvas, format = "image/png", quality = 1.0) {
     return new Promise((resolve, reject) => {
@@ -408,8 +502,11 @@ class HistoryManager {
     this.redoStack = [];
   }
 
-  pushState(canvas) {
-    const snapshot = RemoverEngine.cloneCanvas(canvas);
+  pushState(mainCanvas, originalCanvas = null) {
+    const snapshot = {
+      main: RemoverEngine.cloneCanvas(mainCanvas),
+      original: originalCanvas ? RemoverEngine.cloneCanvas(originalCanvas) : null,
+    };
     this.undoStack.push(snapshot);
     if (this.undoStack.length > this.maxSteps) {
       this.undoStack.shift();
@@ -430,14 +527,26 @@ class HistoryManager {
     const current = this.undoStack.pop();
     this.redoStack.push(current);
     const prev = this.undoStack[this.undoStack.length - 1];
-    return RemoverEngine.cloneCanvas(prev);
+    if (prev instanceof HTMLCanvasElement || !prev.main) {
+      return { main: RemoverEngine.cloneCanvas(prev), original: null };
+    }
+    return {
+      main: RemoverEngine.cloneCanvas(prev.main),
+      original: prev.original ? RemoverEngine.cloneCanvas(prev.original) : null,
+    };
   }
 
   redo(currentCanvas) {
     if (!this.canRedo()) return null;
     const next = this.redoStack.pop();
     this.undoStack.push(next);
-    return RemoverEngine.cloneCanvas(next);
+    if (next instanceof HTMLCanvasElement || !next.main) {
+      return { main: RemoverEngine.cloneCanvas(next), original: null };
+    }
+    return {
+      main: RemoverEngine.cloneCanvas(next.main),
+      original: next.original ? RemoverEngine.cloneCanvas(next.original) : null,
+    };
   }
 }
 
