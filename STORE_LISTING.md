@@ -101,8 +101,11 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 
 1️⃣ 스마트 배경 제거 (AI 누끼 따기) 스튜디오
 - 🤖 온디바이스 SOTA AI 누끼: 최신 AI 모델(RMBG-1.4, MODNet)을 통해 인물, 상품, 사물 등의 배경을 원클릭으로 정밀 분리합니다. (WebGPU 고속 가속 및 WASM 자동 지원)
-- 🎨 스포이드/단색 지우개: 단색 배경이나 스포이드로 지정한 색상을 허용 오차(Tolerance) 및 경계 페더링(Feather)과 함께 즉시 투명화합니다.
+- ✂️ 잘라내기 & 투명 여백 트리밍: 피사체 주변의 불필요한 투명 여백을 원클릭으로 자동 자르거나, 캔버스에서 마우스 드래그로 원하는 사각형 영역을 수동 크롭합니다.
+- 📐 고품질 이미지 리사이즈: 픽셀 단위 직접 입력, 가로세로 비율 유지 고정(🔒), 100%/75%/50%/25% 프리셋 칩 및 부드러운 단계적 다운스케일링을 제공합니다.
+- 🎨 포토샵 스타일 스포이드 & 단색 지우개: 정밀 1px 팁 핫스팟의 포토샵 클래식 피펫 커서로 배경색을 콕 찍어 허용 오차/페더링과 함께 즉시 투명화합니다.
 - 🖌️ 수동 리터칭 브러시: 지우개(Erase) 및 복원 펜(Restore) 브러시로 미세한 경계면을 정밀하게 다듬을 수 있습니다.
+- ↩️ 100% 무결성 실행 취소: 크기 변경 및 크롭 후에도 Ctrl+Z로 해상도와 원본 캔버스 데이터를 손실 없이 온전히 되돌립니다.
 - 📋 원클릭 클립보드 연동: Ctrl+V로 이미지를 바로 불러오고, 결과물을 Ctrl+C(복사)하여 PPT, 포토샵, 피그마에 즉시 붙여넣으세요.
 - 🔀 Split 비교 뷰: 원본과 누끼 결과물을 슬라이더로 좌우 비교하며 검토할 수 있습니다.
 - 🎨 배경 채우기: 투명 배경 외에도 화이트, 블랙, 커스텀 단색 배경을 손쉽게 채워 넣을 수 있습니다.
@@ -155,8 +158,11 @@ A powerful, privacy-first Chrome Extension that lets you batch crop hundreds of 
 
 1️⃣ Smart AI Background Remover Studio
 - 🤖 On-Device SOTA AI: Remove backgrounds from portraits, products, and animals with a single click using RMBG-1.4 & MODNet models (WebGPU accelerated with WASM fallback).
-- 🎨 Color Picker / Tolerance: Cleanly remove solid background colors with adjustable feathering.
+- ✂️ Dedicated Crop & Transparent Margin Trim: Automatically crop excess transparent margins around subjects, or manually drag on the canvas to crop rectangular bounds.
+- 📐 High-Quality Image Resizing: Direct pixel inputs (W/H), Aspect Ratio Lock (🔒), one-click preset scale chips (100%, 75%, 50%, 25%), and anti-aliasing step-down scaling.
+- 🎨 Photoshop-Style Pipette & Color Key: Pick colors with an authentic Photoshop classic eyedropper cursor (exact 1px tip hotspot) and adjust Tolerance/Feathering.
 - 🖌️ Retouching Brush: Fine-tune edges with precision Erase and Restore brushes.
+- ↩️ Lossless Dual-Canvas History: Full Ctrl+Z/Ctrl+Y undo/redo support keeping original restore data and split views 100% in sync.
 - 📋 Seamless Clipboard Workflow: Paste images with Ctrl+V and copy results with Ctrl+C directly into Figma, Photoshop, or PPT.
 - 🔀 Split View: Compare original and cutout images side-by-side with an interactive slider.
 - 🎨 Background Fill: Easily replace transparent backgrounds with solid white, black, or custom colors.

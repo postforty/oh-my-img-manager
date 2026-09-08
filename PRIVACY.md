@@ -2,7 +2,7 @@
 
 **Oh My Image Manager** (이하 "확장 프로그램")는 사용자의 개인정보와 데이터를 소중하게 생각하며, 관련 법령 및 Chrome 웹 스토어 개발자 정책을 준수합니다.
 
-최종 수정일: 2026년 8월 20일
+최종 수정일: 2026년 9월 8일
 
 ---
 
@@ -47,7 +47,7 @@
 
 **Oh My Image Manager** respects your privacy. This extension is designed with a **100% Privacy-First & Local-Only** architecture.
 
-Last Updated: August 20, 2026
+Last Updated: September 8, 2026
 
 ## 1. Data Collection & Processing
 We do **NOT** collect, store, transmit, or share any personal information or user data.

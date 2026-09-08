@@ -17,11 +17,13 @@
 
 ### 1. Smart Background Remover Studio
 - **On-Device SOTA AI Cutout**: Powered by state-of-the-art AI segmentation models (RMBG-1.4 / MODNet), cleanly separating subjects (people, products, animals) from backgrounds with one click — 100% locally in your browser. (WebGPU hardware-accelerated with automatic WASM fallback).
-- **Color Key / Eyedropper Tool**: Pick any solid background color and adjust Tolerance and Edge Feathering to make it transparent instantly.
+- **Dedicated Crop & Trim Tools**: Automatically crop redundant transparent margins around subjects, or manually drag on the canvas with dimmed overlays to crop custom rectangular regions.
+- **High-Quality Image Resizing**: Fine-tune dimensions directly via pixel inputs, lock/unlock aspect ratios, and choose one-click preset scale chips (`100%`, `75%`, `50%`, `25%`) with high-grade multi-step downscaling.
+- **Color Key & Classic Photoshop Eyedropper**: Pick solid background colors with an authentic Photoshop-style pipette cursor (exact 1px tip hotspot) and adjust Tolerance and Feathering.
 - **Manual Retouching Brushes**: Fine-tune delicate details using precision Eraser and Restore brushes.
+- **Lossless Dual-Canvas Undo/Redo**: Full history support (`Ctrl+Z` / `Ctrl+Y`) that keeps original restore data and split comparison views 100% synchronized across crops and resizing.
 - **Seamless Clipboard Integration**: Paste images directly with `Ctrl+V` and copy cutouts with `Ctrl+C` for immediate use in Figma, Photoshop, PowerPoint, or messaging apps.
-- **Side-by-Side Split View**: Compare original and cutout results side-by-side with an interactive drag slider.
-- **Background Fill**: Replace transparent cutouts with solid White, Black, or custom colors easily.
+- **Side-by-Side Split View & Background Fill**: Compare original and cutout results with an interactive slider, and easily replace backgrounds with solid white, black, or custom colors.
 
 ### 2. High-Volume Batch Image Cropper & ZIP Export
 - **Drag & Drop** dozens or hundreds of images at once, or load an entire folder.
@@ -112,7 +114,7 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 2. Drag and drop an image or paste with `Ctrl + V`.
 3. Click **One-Click AI BG Removal** to automatically isolate the subject.
 4. Optionally use the **Color Picker** or **Manual Retouch Brushes (Erase / Restore)** to refine edges.
-5. Click **Download Transparent PNG** or **Copy to Clipboard (Ctrl+C)** to use your result.
+5. Click **Download PNG** or **Copy to Clipboard (Ctrl+C)** to use your result.
 
 ### High-Volume Batch Image Cropper
 1. Click the extension toolbar icon and open the **Batch Crop Workspace**.
@@ -123,6 +125,27 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 ---
 
 ## 📜 Version History
+
+### 🚀 v1.2 (`2026-09-08`)
+**Image Resizing Engine, Crop & Trim Studio Section, and Pro Eyedropper**
+- **High-Performance Image Resizing Engine**:
+  - Precision pixel-based Width (W) and Height (H) inputs with real-time resolution indicator.
+  - Aspect Ratio Lock toggle (🔒) to preserve proportional integrity or allow freeform stretching.
+  - One-click scaling preset chips: `100%` (restore original), `75%`, `50%`, and `25%`.
+  - Multi-step mipmap downscaling algorithm to eliminate aliasing and preserve razor-sharp edges.
+- **Dedicated Crop & Trim Studio Section**:
+  - Independent sidebar section separating crop/trim tools from resizing controls for clarity.
+  - **Auto Trim**: One-click detection and cropping of redundant transparent margins around subjects.
+  - **Manual Canvas Crop**: Interactive rectangular drag-to-crop with darkened exterior overlay, dashed boundary box, 4 corner handles, and real-time dimension badges (`W × H`).
+- **Lossless Dual-Canvas History Synchronization (Undo/Redo)**:
+  - Extended `HistoryManager` to simultaneously snapshot active editing canvas and pristine original canvas.
+  - Complete `Ctrl+Z` / `Ctrl+Y` recovery restoring previous resolution and uncropped original data with zero pixel distortion.
+- **Authentic Photoshop-Style Eyedropper**:
+  - Classic diagonal pipette vector cursor with accurate 1px tip hotspot targeting (`1, 22`).
+  - Integrated drop shadows and dual-tone borders (black & white) for crystal-clear visibility on both dark and light images.
+  - Matching toolbar button icon and mutual exclusivity with crop mode (<kbd>ESC</kbd> cancel supported).
+
+---
 
 ### 🚀 v1.1 (`2026-08-22`)
 **Multi-Language (i18n) Support & Enhanced AI/UX**

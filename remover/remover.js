@@ -1309,7 +1309,7 @@ function setupActionButtons() {
       const outputFilename = `${baseName}_transparent.png`;
 
       downloadBlob(blob, outputFilename);
-      showToast(typeof I18N !== "undefined" ? I18N.t("toastPngDownloaded") : "투명 PNG 다운로드가 완료되었습니다!", "success");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastPngDownloaded") : "PNG 다운로드가 완료되었습니다!", "success");
     } catch (err) {
       console.error("Export failed:", err);
       alert(typeof I18N !== "undefined" ? I18N.t("alertDownloadFailed") : "다운로드 중 오류가 발생했습니다.");
