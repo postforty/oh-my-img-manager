@@ -126,6 +126,17 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 
 ## 📜 Version History
 
+### 🚀 v1.2.1 (`2026-09-12`)
+**AI Background Remover Progress Bar Fix & Smooth Progress Simulation**
+- **Robust AI Progress Bar Reset & State Synchronization**:
+  - Implemented `resetAiProgress` logic to ensure the progress bar and timer are cleanly reset to 0% upon loading new images, task initiation, success, and error events.
+  - Resolved residual 100% completion state from previous jobs that caused flicker or visual jump when starting new tasks.
+- **Smooth Simulated Progress for Cached AI Models**:
+  - Fixed an issue where progress bar immediately skipped to 95% on repeated runs where the AI model was already cached in memory.
+  - Added simulated smooth progress curve (`startInferenceProgressSimulation`) that gradually steps from 15% to 90% during actual neural network inference time, reaching 100% upon completion.
+
+---
+
 ### 🚀 v1.2 (`2026-09-08`)
 **Image Resizing Engine, Crop & Trim Studio Section, and Pro Eyedropper**
 - **High-Performance Image Resizing Engine**:
