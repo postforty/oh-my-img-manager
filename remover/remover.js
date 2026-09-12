@@ -250,6 +250,66 @@ function setupAIWorker() {
   }
 }
 
+// -------------------------------------------------------------
+// AI Progress Management & Smooth Simulation
+// -------------------------------------------------------------
+let aiProgressTimer = null;
+let currentAiProgress = 0;
+
+function resetAiProgress() {
+  if (aiProgressTimer) {
+    clearInterval(aiProgressTimer);
+    aiProgressTimer = null;
+  }
+  currentAiProgress = 0;
+  if (aiProgressBarFill) {
+    aiProgressBarFill.style.transition = "none";
+    aiProgressBarFill.style.width = "0%";
+    void aiProgressBarFill.offsetWidth; // Force reflow
+    aiProgressBarFill.style.transition = "";
+  }
+  if (aiProgressWrap) {
+    aiProgressWrap.classList.add("hidden");
+  }
+}
+
+function setAiProgress(percent, statusMsg) {
+  currentAiProgress = percent;
+  if (aiProgressBarFill) {
+    aiProgressBarFill.style.width = `${percent}%`;
+  }
+  if (statusMsg) {
+    if (aiStatusText) aiStatusText.textContent = statusMsg;
+    if (scanBadgeText) scanBadgeText.textContent = statusMsg;
+  }
+}
+
+function startInferenceProgressSimulation() {
+  if (aiProgressTimer) {
+    clearInterval(aiProgressTimer);
+    aiProgressTimer = null;
+  }
+  if (currentAiProgress < 20) {
+    currentAiProgress = 15;
+  } else if (currentAiProgress > 85) {
+    currentAiProgress = 85;
+  }
+  if (aiProgressBarFill) {
+    aiProgressBarFill.style.width = `${currentAiProgress}%`;
+  }
+
+  aiProgressTimer = setInterval(() => {
+    if (currentAiProgress < 90) {
+      const remaining = 90 - currentAiProgress;
+      const step = Math.max(0.4, remaining * 0.08);
+      currentAiProgress = Math.min(90, currentAiProgress + step);
+      if (aiProgressBarFill) {
+        aiProgressBarFill.style.width = `${Math.round(currentAiProgress)}%`;
+      }
+    }
+  }, 120);
+}
+
 function handleWorkerMessage(e) {
   const { type, progress, file, maskBuffer, width, height, error, backend } = e.data;
 
@@ -277,24 +337,23 @@ function handleWorkerMessage(e) {
   } else if (type === "INITIATE") {
     aiProgressWrap.classList.remove("hidden");
     const statusMsg = typeof I18N !== "undefined" ? I18N.t("modelLoadingStatus") : "준비 중...";
-    aiStatusText.textContent = statusMsg;
-    if (scanBadgeText) scanBadgeText.textContent = statusMsg;
+    setAiProgress(5, statusMsg);
   } else if (type === "PROGRESS") {
     aiProgressWrap.classList.remove("hidden");
-    aiProgressBarFill.style.width = `${progress}%`;
     const dlMsg = typeof I18N !== "undefined" ? I18N.t("modelDownloading", [progress]) : `다운로드 중... (${progress}%)`;
-    aiStatusText.textContent = dlMsg;
-    if (scanBadgeText) scanBadgeText.textContent = dlMsg;
+    setAiProgress(progress, dlMsg);
   } else if (type === "INFERENCE_START") {
-    aiProgressBarFill.style.width = `95%`;
     const infMsg = typeof I18N !== "undefined" ? I18N.t("modelInferencing") : "배경 제거 중...";
-    aiStatusText.textContent = infMsg;
+    if (aiStatusText) aiStatusText.textContent = infMsg;
     if (scanBadgeText) scanBadgeText.textContent = infMsg;
+    startInferenceProgressSimulation();
   } else if (type === "SUCCESS") {
-    aiProgressBarFill.style.width = `100%`;
+    if (aiProgressTimer) {
+      clearInterval(aiProgressTimer);
+      aiProgressTimer = null;
+    }
     const doneMsg = typeof I18N !== "undefined" ? I18N.t("toastAiDone") : "완료!";
-    aiStatusText.textContent = doneMsg;
-    if (scanBadgeText) scanBadgeText.textContent = doneMsg;
+    setAiProgress(100, doneMsg);
 
     const maskData = new Uint8ClampedArray(maskBuffer);
     RemoverEngine.applyAlphaMask(mainCanvas, maskData, width, height, originalCanvas);
@@ -303,12 +362,12 @@ function handleWorkerMessage(e) {
     updateCanvasDisplay();
 
     setTimeout(() => {
-      aiProgressWrap.classList.add("hidden");
+      resetAiProgress();
       setAIProcessingState(false);
       showToast(typeof I18N !== "undefined" ? I18N.t("toastAiDone") : "AI 배경 제거가 완료되었습니다!", "success");
     }, 400);
   } else if (type === "ERROR") {
-    aiProgressWrap.classList.add("hidden");
+    resetAiProgress();
     setAIProcessingState(false);
     alert(typeof I18N !== "undefined" ? I18N.t("alertAiFailed", [error]) : `AI 배경 제거 실패: ${error}`);
   }
@@ -423,6 +482,7 @@ async function loadImageFile(file, customName) {
 
     // Reset History & Crop State
     setCropMode(false);
+    resetAiProgress();
     historyManager.clear();
     historyManager.pushState(mainCanvas, originalCanvas);
     updateUndoRedoButtons();
@@ -867,10 +927,10 @@ function setupAIControls() {
     }
 
     const prepText = typeof I18N !== "undefined" ? I18N.t("aiStatusReady") : "준비 중...";
+    resetAiProgress();
     setAIProcessingState(true, prepText);
     aiProgressWrap.classList.remove("hidden");
-    aiProgressBarFill.style.width = "5%";
-    aiStatusText.textContent = prepText;
+    setAiProgress(5, prepText);
 
     // Send original image data to worker
     const ctx = originalCanvas.getContext("2d", { willReadFrequently: true });
