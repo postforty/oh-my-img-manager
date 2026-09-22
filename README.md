@@ -17,7 +17,7 @@
 
 ### 1. Smart Background Remover Studio
 - **On-Device SOTA AI Cutout**: Powered by state-of-the-art AI segmentation models (RMBG-1.4 / MODNet), cleanly separating subjects (people, products, animals) from backgrounds with one click — 100% locally in your browser. (WebGPU hardware-accelerated with automatic WASM fallback).
-- **Dedicated Crop & Trim Tools**: Automatically crop redundant transparent margins around subjects, or manually drag on the canvas with dimmed overlays to crop custom rectangular regions.
+- **Dedicated Crop & Trim Tools**: Automatically crop redundant transparent margins around subjects, or manually crop custom regions with **direct W/H pixel inputs**, **strict aspect ratio lock (Free, 1:1, 4:3, 16:9 presets)**, **8-direction interactive resize handles**, and seamless crop-box repositioning.
 - **High-Quality Image Resizing**: Fine-tune dimensions directly via pixel inputs, lock/unlock aspect ratios, and choose one-click preset scale chips (`100%`, `75%`, `50%`, `25%`) with high-grade multi-step downscaling.
 - **Color Key & Classic Photoshop Eyedropper**: Pick solid background colors with an authentic Photoshop-style pipette cursor (exact 1px tip hotspot) and adjust Tolerance and Feathering.
 - **Manual Retouching Brushes**: Fine-tune delicate details using precision Eraser and Restore brushes.

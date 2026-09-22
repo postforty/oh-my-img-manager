@@ -45,9 +45,17 @@ const state = {
   crop: {
     isActive: false,
     isDragging: false,
+    isMoving: false,
+    isResizing: false,
+    resizeHandle: null,
+    moveStartPos: { x: 0, y: 0 },
+    initialRect: null,
     startX: 0,
     startY: 0,
     currentRect: null,
+    lockAspectRatio: false,
+    aspectRatio: 1.0,
+    presetRatio: "free",
   },
 
   resize: {
@@ -115,6 +123,14 @@ const valBrushHardness = document.getElementById("valBrushHardness");
 // Crop & Trim Elements
 const btnAutoTrim = document.getElementById("btnAutoTrim");
 const btnManualCrop = document.getElementById("btnManualCrop");
+const cropSettingsPanel = document.getElementById("cropSettingsPanel");
+const inputCropWidth = document.getElementById("inputCropWidth");
+const inputCropHeight = document.getElementById("inputCropHeight");
+const checkCropLockRatio = document.getElementById("checkCropLockRatio");
+const labelCropLockRatio = document.getElementById("labelCropLockRatio");
+const iconCropLock = document.getElementById("iconCropLock");
+const iconCropUnlock = document.getElementById("iconCropUnlock");
+const cropPresetChips = document.querySelectorAll(".crop-presets .btn-preset-chip");
 const cropActionGroup = document.getElementById("cropActionGroup");
 const btnApplyCrop = document.getElementById("btnApplyCrop");
 const btnCancelCrop = document.getElementById("btnCancelCrop");
@@ -128,7 +144,7 @@ const labelLockRatio = document.getElementById("labelLockRatio");
 const iconLock = document.getElementById("iconLock");
 const iconUnlock = document.getElementById("iconUnlock");
 const btnApplyResize = document.getElementById("btnApplyResize");
-const resizePresetChips = document.querySelectorAll(".btn-preset-chip");
+const resizePresetChips = document.querySelectorAll(".resize-presets .btn-preset-chip");
 
 // Action Elements
 const btnUndo = document.getElementById("btnUndo");
@@ -505,6 +521,24 @@ async function loadImageFile(file, customName) {
       iconUnlock.classList.add("hidden");
     }
 
+    // Initialize Crop State & Inputs
+    state.crop.lockAspectRatio = false;
+    state.crop.aspectRatio = 1.0;
+    state.crop.presetRatio = "free";
+    if (checkCropLockRatio) checkCropLockRatio.checked = false;
+    if (labelCropLockRatio) labelCropLockRatio.classList.remove("active");
+    if (iconCropLock && iconCropUnlock) {
+      iconCropLock.classList.add("hidden");
+      iconCropUnlock.classList.remove("hidden");
+    }
+    if (cropPresetChips) {
+      cropPresetChips.forEach((chip) => {
+        chip.classList.toggle("active", chip.dataset.ratio === "free");
+      });
+    }
+    if (inputCropWidth) inputCropWidth.value = "";
+    if (inputCropHeight) inputCropHeight.value = "";
+
     enableControls(true);
     resetZoomAndFit();
     updateCanvasDisplay();
@@ -524,6 +558,9 @@ function enableControls(enabled) {
     btnResetImage,
     btnAutoTrim,
     btnManualCrop,
+    inputCropWidth,
+    inputCropHeight,
+    checkCropLockRatio,
     btnApplyResize,
     checkLockRatio,
     inputResizeWidth,
@@ -531,6 +568,12 @@ function enableControls(enabled) {
   ].forEach((btn) => {
     if (btn) btn.disabled = !enabled;
   });
+
+  if (cropPresetChips) {
+    cropPresetChips.forEach((chip) => {
+      chip.disabled = !enabled;
+    });
+  }
 
   if (resizePresetChips) {
     resizePresetChips.forEach((chip) => {
@@ -716,13 +759,138 @@ function setupCanvasInteractions() {
         return;
       }
 
-      // Handle Manual Crop Dragging
+      // Handle Manual Crop Dragging, Moving or Resizing
       if (state.crop.isActive) {
         brushCursor.classList.add("hidden");
+
+        // Handle Resizing via 8-direction handles
+        if (state.crop.isResizing && state.crop.initialRect && state.crop.resizeHandle) {
+          const dx = x - state.crop.moveStartPos.x;
+          const dy = y - state.crop.moveStartPos.y;
+          const init = state.crop.initialRect;
+          const handle = state.crop.resizeHandle;
+          const ratio = state.crop.lockAspectRatio && state.crop.aspectRatio > 0 ? state.crop.aspectRatio : null;
+
+          let newX = init.x;
+          let newY = init.y;
+          let newW = init.width;
+          let newH = init.height;
+
+          if (ratio) {
+            // === RATIO LOCKED RESIZE (All 8 Handles strictly maintain ratio) ===
+            if (handle === "br") {
+              if (Math.abs(dx) / ratio >= Math.abs(dy)) {
+                newW = Math.max(5, init.width + dx);
+                newH = Math.max(5, Math.round(newW / ratio));
+              } else {
+                newH = Math.max(5, init.height + dy);
+                newW = Math.max(5, Math.round(newH * ratio));
+              }
+            } else if (handle === "tl") {
+              if (Math.abs(dx) / ratio >= Math.abs(dy)) {
+                newW = Math.max(5, init.width - dx);
+                newH = Math.max(5, Math.round(newW / ratio));
+              } else {
+                newH = Math.max(5, init.height - dy);
+                newW = Math.max(5, Math.round(newH * ratio));
+              }
+              newX = init.x + init.width - newW;
+              newY = init.y + init.height - newH;
+            } else if (handle === "tr") {
+              if (Math.abs(dx) / ratio >= Math.abs(dy)) {
+                newW = Math.max(5, init.width + dx);
+                newH = Math.max(5, Math.round(newW / ratio));
+              } else {
+                newH = Math.max(5, init.height - dy);
+                newW = Math.max(5, Math.round(newH * ratio));
+              }
+              newY = init.y + init.height - newH;
+            } else if (handle === "bl") {
+              if (Math.abs(dx) / ratio >= Math.abs(dy)) {
+                newW = Math.max(5, init.width - dx);
+                newH = Math.max(5, Math.round(newW / ratio));
+              } else {
+                newH = Math.max(5, init.height + dy);
+                newW = Math.max(5, Math.round(newH * ratio));
+              }
+              newX = init.x + init.width - newW;
+            } else if (handle === "mr") {
+              newW = Math.max(5, init.width + dx);
+              newH = Math.max(5, Math.round(newW / ratio));
+              newY = init.y + Math.round((init.height - newH) / 2);
+            } else if (handle === "ml") {
+              newW = Math.max(5, init.width - dx);
+              newH = Math.max(5, Math.round(newW / ratio));
+              newX = init.x + init.width - newW;
+              newY = init.y + Math.round((init.height - newH) / 2);
+            } else if (handle === "bc") {
+              newH = Math.max(5, init.height + dy);
+              newW = Math.max(5, Math.round(newH * ratio));
+              newX = init.x + Math.round((init.width - newW) / 2);
+            } else if (handle === "tc") {
+              newH = Math.max(5, init.height - dy);
+              newW = Math.max(5, Math.round(newH * ratio));
+              newX = init.x + Math.round((init.width - newW) / 2);
+              newY = init.y + init.height - newH;
+            }
+
+            // Clamping that strictly preserves aspect ratio
+            if (newW > mainCanvas.width) {
+              newW = mainCanvas.width;
+              newH = Math.round(newW / ratio);
+            }
+            if (newH > mainCanvas.height) {
+              newH = mainCanvas.height;
+              newW = Math.round(newH * ratio);
+            }
+            if (newX < 0) newX = 0;
+            if (newY < 0) newY = 0;
+            if (newX + newW > mainCanvas.width) newX = mainCanvas.width - newW;
+            if (newY + newH > mainCanvas.height) newY = mainCanvas.height - newH;
+          } else {
+            // === FREE ASPECT RATIO ===
+            if (handle.includes("l")) {
+              newW = init.width - dx;
+              newX = init.x + dx;
+            } else if (handle.includes("r")) {
+              newW = init.width + dx;
+            }
+
+            if (handle.includes("t")) {
+              newH = init.height - dy;
+              newY = init.y + dy;
+            } else if (handle.includes("b")) {
+              newH = init.height + dy;
+            }
+
+            if (newW < 5) {
+              if (handle.includes("l")) newX = init.x + init.width - 5;
+              newW = 5;
+            }
+            if (newH < 5) {
+              if (handle.includes("t")) newY = init.y + init.height - 5;
+              newH = 5;
+            }
+          }
+
+          setCropBoxRect(newX, newY, newW, newH, true);
+          return;
+        }
+
+        if (state.crop.isMoving && state.crop.initialRect) {
+          const dx = x - state.crop.moveStartPos.x;
+          const dy = y - state.crop.moveStartPos.y;
+          const newX = state.crop.initialRect.x + dx;
+          const newY = state.crop.initialRect.y + dy;
+          setCropBoxRect(newX, newY, state.crop.initialRect.width, state.crop.initialRect.height, false);
+          return;
+        }
+
         if (state.crop.isDragging) {
           const clampedX = Math.max(0, Math.min(mainCanvas.width, x));
           const clampedY = Math.max(0, Math.min(mainCanvas.height, y));
           updateCropSelectionBox(state.crop.startX, state.crop.startY, clampedX, clampedY);
+          return;
         }
         return;
       }
@@ -772,8 +940,35 @@ function setupCanvasInteractions() {
 
       const { x, y } = getCanvasCoords(e);
 
-      // Handle Manual Crop Box Start
+      // Handle Manual Crop Box Start, Move, or Resize
       if (state.crop.isActive) {
+        // 1. Check if clicked a resize handle
+        if (e.target && e.target.classList.contains("crop-handle")) {
+          state.crop.isResizing = true;
+          state.crop.resizeHandle = e.target.dataset.handle;
+          state.crop.moveStartPos = { x, y };
+          state.crop.initialRect = { ...state.crop.currentRect };
+          return;
+        }
+
+        // 2. Check if clicked inside existing crop box
+        const cur = state.crop.currentRect;
+        const isClickInside =
+          cur &&
+          x >= cur.x &&
+          x <= cur.x + cur.width &&
+          y >= cur.y &&
+          y <= cur.y + cur.height;
+
+        if (isClickInside) {
+          state.crop.isMoving = true;
+          state.crop.moveStartPos = { x, y };
+          state.crop.initialRect = { ...cur };
+          cropSelectionBox.classList.add("moving");
+          return;
+        }
+
+        // 3. Otherwise start drawing a new crop box
         state.crop.isDragging = true;
         const clampedX = Math.max(0, Math.min(mainCanvas.width, x));
         const clampedY = Math.max(0, Math.min(mainCanvas.height, y));
@@ -814,6 +1009,17 @@ function setupCanvasInteractions() {
 
     // Mouse Up
     window.addEventListener("mouseup", () => {
+      if (state.crop.isResizing) {
+        state.crop.isResizing = false;
+        state.crop.resizeHandle = null;
+        if (state.crop.currentRect && state.crop.currentRect.width >= 5 && state.crop.currentRect.height >= 5) {
+          btnApplyCrop.disabled = false;
+        }
+      }
+      if (state.crop.isMoving) {
+        state.crop.isMoving = false;
+        if (cropSelectionBox) cropSelectionBox.classList.remove("moving");
+      }
       if (state.crop.isDragging) {
         state.crop.isDragging = false;
         if (state.crop.currentRect && state.crop.currentRect.width >= 5 && state.crop.currentRect.height >= 5) {
@@ -1083,6 +1289,155 @@ function setupCropControls() {
     });
   }
 
+  // Width Input Change
+  if (inputCropWidth) {
+    inputCropWidth.addEventListener("input", () => {
+      if (!state.originalImage) return;
+      const w = parseInt(inputCropWidth.value, 10);
+      if (isNaN(w) || w <= 0) return;
+
+      let h = parseInt(inputCropHeight.value, 10);
+      if (state.crop.lockAspectRatio && state.crop.aspectRatio > 0) {
+        h = Math.max(1, Math.round(w / state.crop.aspectRatio));
+        if (inputCropHeight) inputCropHeight.value = h;
+      } else if (!h || isNaN(h)) {
+        h = w;
+        if (inputCropHeight) inputCropHeight.value = h;
+      }
+
+      const cur = state.crop.currentRect;
+      const cx = cur ? cur.x + cur.width / 2 : mainCanvas.width / 2;
+      const cy = cur ? cur.y + cur.height / 2 : mainCanvas.height / 2;
+
+      const newX = Math.round(cx - w / 2);
+      const newY = Math.round(cy - h / 2);
+      setCropBoxRect(newX, newY, w, h, false);
+    });
+  }
+
+  // Height Input Change
+  if (inputCropHeight) {
+    inputCropHeight.addEventListener("input", () => {
+      if (!state.originalImage) return;
+      const h = parseInt(inputCropHeight.value, 10);
+      if (isNaN(h) || h <= 0) return;
+
+      let w = parseInt(inputCropWidth.value, 10);
+      if (state.crop.lockAspectRatio && state.crop.aspectRatio > 0) {
+        w = Math.max(1, Math.round(h * state.crop.aspectRatio));
+        if (inputCropWidth) inputCropWidth.value = w;
+      } else if (!w || isNaN(w)) {
+        w = h;
+        if (inputCropWidth) inputCropWidth.value = w;
+      }
+
+      const cur = state.crop.currentRect;
+      const cx = cur ? cur.x + cur.width / 2 : mainCanvas.width / 2;
+      const cy = cur ? cur.y + cur.height / 2 : mainCanvas.height / 2;
+
+      const newX = Math.round(cx - w / 2);
+      const newY = Math.round(cy - h / 2);
+      setCropBoxRect(newX, newY, w, h, false);
+    });
+  }
+
+  // Aspect Ratio Lock Checkbox Change
+  if (checkCropLockRatio) {
+    checkCropLockRatio.addEventListener("change", () => {
+      state.crop.lockAspectRatio = checkCropLockRatio.checked;
+      if (labelCropLockRatio) labelCropLockRatio.classList.toggle("active", state.crop.lockAspectRatio);
+      if (iconCropLock && iconCropUnlock) {
+        iconCropLock.classList.toggle("hidden", !state.crop.lockAspectRatio);
+        iconCropUnlock.classList.toggle("hidden", state.crop.lockAspectRatio);
+      }
+
+      if (state.crop.lockAspectRatio) {
+        let targetRatio = null;
+        if (state.crop.presetRatio === "1:1") targetRatio = 1.0;
+        else if (state.crop.presetRatio === "4:3") targetRatio = 4 / 3;
+        else if (state.crop.presetRatio === "16:9") targetRatio = 16 / 9;
+
+        if (targetRatio) {
+          state.crop.aspectRatio = targetRatio;
+        } else {
+          const cur = state.crop.currentRect;
+          if (cur && cur.width > 0 && cur.height > 0) {
+            state.crop.aspectRatio = cur.width / cur.height;
+          } else {
+            const w = parseInt(inputCropWidth.value, 10) || mainCanvas.width;
+            const h = parseInt(inputCropHeight.value, 10) || mainCanvas.height;
+            state.crop.aspectRatio = w / h;
+          }
+        }
+      } else {
+        if (cropPresetChips) {
+          cropPresetChips.forEach((chip) => {
+            chip.classList.toggle("active", chip.dataset.ratio === "free");
+          });
+        }
+      }
+    });
+  }
+
+  // Preset Ratio Chips (free, 1:1, 4:3, 16:9)
+  if (cropPresetChips) {
+    cropPresetChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if (!state.originalImage) return;
+
+        cropPresetChips.forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+
+        const ratioKey = chip.dataset.ratio;
+        state.crop.presetRatio = ratioKey;
+
+        if (ratioKey === "free") {
+          state.crop.lockAspectRatio = false;
+          if (checkCropLockRatio) checkCropLockRatio.checked = false;
+          if (labelCropLockRatio) labelCropLockRatio.classList.remove("active");
+          if (iconCropLock && iconCropUnlock) {
+            iconCropLock.classList.add("hidden");
+            iconCropUnlock.classList.remove("hidden");
+          }
+        } else {
+          let targetRatio = 1.0;
+          if (ratioKey === "1:1") targetRatio = 1.0;
+          else if (ratioKey === "4:3") targetRatio = 4 / 3;
+          else if (ratioKey === "16:9") targetRatio = 16 / 9;
+
+          state.crop.lockAspectRatio = true;
+          state.crop.aspectRatio = targetRatio;
+          if (checkCropLockRatio) checkCropLockRatio.checked = true;
+          if (labelCropLockRatio) labelCropLockRatio.classList.add("active");
+          if (iconCropLock && iconCropUnlock) {
+            iconCropLock.classList.remove("hidden");
+            iconCropUnlock.classList.add("hidden");
+          }
+
+          // Adjust current crop box to match new ratio
+          const cur = state.crop.currentRect;
+          let curW = cur ? cur.width : Math.round(mainCanvas.width * 0.8);
+          let curH = Math.round(curW / targetRatio);
+
+          if (curH > mainCanvas.height) {
+            curH = mainCanvas.height;
+            curW = Math.round(curH * targetRatio);
+          }
+          if (curW > mainCanvas.width) {
+            curW = mainCanvas.width;
+            curH = Math.round(curW / targetRatio);
+          }
+
+          const cx = cur ? cur.x + cur.width / 2 : mainCanvas.width / 2;
+          const cy = cur ? cur.y + cur.height / 2 : mainCanvas.height / 2;
+          const newX = Math.round(cx - curW / 2);
+          const newY = Math.round(cy - curH / 2);
+          setCropBoxRect(newX, newY, curW, curH, true);
+        }
+      });
+    });
+  }
+
   // Apply Crop Button
   if (btnApplyCrop) {
     btnApplyCrop.addEventListener("click", applyManualCrop);
@@ -1106,22 +1461,22 @@ function setupCropControls() {
 function setCropMode(active) {
   state.crop.isActive = active;
   state.crop.isDragging = false;
-  state.crop.currentRect = null;
+  state.crop.isMoving = false;
+  state.crop.isResizing = false;
+  state.crop.resizeHandle = null;
+
+  if (cropSelectionBox) {
+    cropSelectionBox.classList.remove("moving");
+  }
 
   if (btnManualCrop) {
     btnManualCrop.classList.toggle("active", active);
   }
-  if (cropActionGroup) {
-    cropActionGroup.classList.toggle("hidden", !active);
+  if (cropSettingsPanel) {
+    cropSettingsPanel.classList.toggle("hidden", !active);
   }
   if (cropOverlayLayer) {
     cropOverlayLayer.classList.toggle("hidden", !active);
-  }
-  if (cropSelectionBox) {
-    cropSelectionBox.classList.add("hidden");
-  }
-  if (btnApplyCrop) {
-    btnApplyCrop.disabled = true;
   }
 
   if (active) {
@@ -1132,39 +1487,154 @@ function setCropMode(active) {
     }
     canvasStage.classList.add("crop-mode");
     if (brushCursor) brushCursor.classList.add("hidden");
+
+    // Initialize or restore crop box
+    if (state.originalImage) {
+      if (!state.crop.currentRect) {
+        let w = Math.round(mainCanvas.width * 0.8);
+        let h = Math.round(mainCanvas.height * 0.8);
+        if (state.crop.lockAspectRatio && state.crop.aspectRatio > 0) {
+          h = Math.round(w / state.crop.aspectRatio);
+          if (h > mainCanvas.height) {
+            h = mainCanvas.height;
+            w = Math.round(h * state.crop.aspectRatio);
+          }
+        }
+        const x = Math.round((mainCanvas.width - w) / 2);
+        const y = Math.round((mainCanvas.height - h) / 2);
+        setCropBoxRect(x, y, w, h, true);
+      } else {
+        setCropBoxRect(
+          state.crop.currentRect.x,
+          state.crop.currentRect.y,
+          state.crop.currentRect.width,
+          state.crop.currentRect.height,
+          true
+        );
+      }
+    }
+
     showToast(
       typeof I18N !== "undefined"
         ? I18N.t("toastCropModeHint")
-        : "캔버스에서 자르고자 하는 영역을 마우스로 드래그하세요.",
+        : "캔버스에서 자르고자 하는 영역을 마우스로 드래그하거나 수치를 입력하세요.",
       "info"
     );
   } else {
     canvasStage.classList.remove("crop-mode");
+    if (cropSelectionBox) {
+      cropSelectionBox.classList.add("hidden");
+    }
+    state.crop.currentRect = null;
+    if (btnApplyCrop) {
+      btnApplyCrop.disabled = true;
+    }
   }
 }
 
-function updateCropSelectionBox(x1, y1, x2, y2) {
-  const left = Math.min(x1, x2);
-  const top = Math.min(y1, y2);
-  const width = Math.abs(x2 - x1);
-  const height = Math.abs(y2 - y1);
+function setCropBoxRect(x, y, width, height, updateInputs = true) {
+  if (!state.originalImage) return;
 
-  state.crop.currentRect = { x: left, y: top, width, height };
+  const maxW = mainCanvas.width;
+  const maxH = mainCanvas.height;
+
+  // Strict aspect ratio preservation
+  if (state.crop.lockAspectRatio && state.crop.aspectRatio > 0) {
+    const ratio = state.crop.aspectRatio;
+
+    // Check bounds and scale width/height proportionally
+    if (width > maxW) {
+      width = maxW;
+      height = Math.round(width / ratio);
+    }
+    if (height > maxH) {
+      height = maxH;
+      width = Math.round(height * ratio);
+    }
+    if (width > maxW) {
+      width = maxW;
+      height = Math.round(width / ratio);
+    }
+
+    width = Math.max(5, Math.min(maxW, width));
+    height = Math.max(1, Math.min(maxH, height));
+
+    x = Math.max(0, Math.min(maxW - width, x));
+    y = Math.max(0, Math.min(maxH - height, y));
+  } else {
+    width = Math.max(1, Math.min(maxW, width));
+    height = Math.max(1, Math.min(maxH, height));
+    x = Math.max(0, Math.min(maxW - width, x));
+    y = Math.max(0, Math.min(maxH - height, y));
+  }
+
+  state.crop.currentRect = { x, y, width, height };
 
   if (cropSelectionBox) {
-    cropSelectionBox.style.left = `${left}px`;
-    cropSelectionBox.style.top = `${top}px`;
+    cropSelectionBox.style.left = `${x}px`;
+    cropSelectionBox.style.top = `${y}px`;
     cropSelectionBox.style.width = `${width}px`;
     cropSelectionBox.style.height = `${height}px`;
+    cropSelectionBox.classList.remove("hidden");
   }
 
   if (cropInfoBadge) {
     cropInfoBadge.textContent = `${width} × ${height}`;
   }
 
+  if (updateInputs) {
+    if (inputCropWidth) inputCropWidth.value = width;
+    if (inputCropHeight) inputCropHeight.value = height;
+  }
+
   if (btnApplyCrop) {
     btnApplyCrop.disabled = width < 5 || height < 5;
   }
+}
+
+function updateCropSelectionBox(x1, y1, x2, y2) {
+  let left = Math.min(x1, x2);
+  let top = Math.min(y1, y2);
+  let width = Math.abs(x2 - x1);
+  let height = Math.abs(y2 - y1);
+
+  if (state.crop.lockAspectRatio && state.crop.aspectRatio > 0 && width > 0 && height > 0) {
+    const ratio = state.crop.aspectRatio;
+    if (width / height > ratio) {
+      width = Math.round(height * ratio);
+    } else {
+      height = Math.round(width / ratio);
+    }
+
+    if (x2 < x1) {
+      left = x1 - width;
+    }
+    if (y2 < y1) {
+      top = y1 - height;
+    }
+
+    // Keep aspect ratio within canvas bounds
+    if (left < 0) {
+      left = 0;
+      width = Math.min(mainCanvas.width, x1);
+      height = Math.round(width / ratio);
+    }
+    if (left + width > mainCanvas.width) {
+      width = mainCanvas.width - left;
+      height = Math.round(width / ratio);
+    }
+    if (top < 0) {
+      top = 0;
+      height = Math.min(mainCanvas.height, y1);
+      width = Math.round(height * ratio);
+    }
+    if (top + height > mainCanvas.height) {
+      height = mainCanvas.height - top;
+      width = Math.round(height * ratio);
+    }
+  }
+
+  setCropBoxRect(left, top, width, height, true);
 }
 
 function applyManualCrop() {

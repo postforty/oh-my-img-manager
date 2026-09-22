@@ -101,7 +101,7 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 
 1️⃣ 스마트 배경 제거 (AI 누끼 따기) 스튜디오
 - 🤖 온디바이스 SOTA AI 누끼: 최신 AI 모델(RMBG-1.4, MODNet)을 통해 인물, 상품, 사물 등의 배경을 원클릭으로 정밀 분리합니다. (WebGPU 고속 가속 및 WASM 자동 지원)
-- ✂️ 잘라내기 & 투명 여백 트리밍: 피사체 주변의 불필요한 투명 여백을 원클릭으로 자동 자르거나, 캔버스에서 마우스 드래그로 원하는 사각형 영역을 수동 크롭합니다.
+- ✂️ 잘라내기 & 투명 여백 트리밍: 피사체 주변의 불필요한 투명 여백을 원클릭으로 자동 자르거나, W/H 픽셀 직접 입력, 종횡비 고정 프리셋(1:1, 4:3, 16:9), 8방향 핸들 드래그 크기 조절로 원하는 영역을 정밀하게 수동 크롭합니다.
 - 📐 고품질 이미지 리사이즈: 픽셀 단위 직접 입력, 가로세로 비율 유지 고정(🔒), 100%/75%/50%/25% 프리셋 칩 및 부드러운 단계적 다운스케일링을 제공합니다.
 - 🎨 포토샵 스타일 스포이드 & 단색 지우개: 정밀 1px 팁 핫스팟의 포토샵 클래식 피펫 커서로 배경색을 콕 찍어 허용 오차/페더링과 함께 즉시 투명화합니다.
 - 🖌️ 수동 리터칭 브러시: 지우개(Erase) 및 복원 펜(Restore) 브러시로 미세한 경계면을 정밀하게 다듬을 수 있습니다.
@@ -158,7 +158,7 @@ A powerful, privacy-first Chrome Extension that lets you batch crop hundreds of 
 
 1️⃣ Smart AI Background Remover Studio
 - 🤖 On-Device SOTA AI: Remove backgrounds from portraits, products, and animals with a single click using RMBG-1.4 & MODNet models (WebGPU accelerated with WASM fallback).
-- ✂️ Dedicated Crop & Transparent Margin Trim: Automatically crop excess transparent margins around subjects, or manually drag on the canvas to crop rectangular bounds.
+- ✂️ Dedicated Crop & Transparent Margin Trim: Automatically crop excess transparent margins around subjects, or manually crop custom regions with direct W/H pixel inputs, strict aspect ratio presets (1:1, 4:3, 16:9), and 8-direction interactive resize handles.
 - 📐 High-Quality Image Resizing: Direct pixel inputs (W/H), Aspect Ratio Lock (🔒), one-click preset scale chips (100%, 75%, 50%, 25%), and anti-aliasing step-down scaling.
 - 🎨 Photoshop-Style Pipette & Color Key: Pick colors with an authentic Photoshop classic eyedropper cursor (exact 1px tip hotspot) and adjust Tolerance/Feathering.
 - 🖌️ Retouching Brush: Fine-tune edges with precision Erase and Restore brushes.

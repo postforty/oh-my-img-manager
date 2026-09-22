@@ -261,21 +261,66 @@
             </button>
           </div>
 
-          <!-- Active Crop Action Buttons (Apply / Cancel) -->
-          <div id="cropActionGroup" class="crop-action-group hidden">
-            <button id="btnApplyCrop" class="btn btn-primary btn-sm" disabled>
-              <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <span data-i18n="btnApplyCrop">자르기</span>
-            </button>
-            <button id="btnCancelCrop" class="btn btn-secondary btn-sm">
-              <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-              <span data-i18n="btnCancelCrop">취소 (ESC)</span>
-            </button>
+          <!-- Crop Area Settings Panel -->
+          <div id="cropSettingsPanel" class="crop-settings-panel hidden">
+            <div class="resize-inputs-row">
+              <div class="resize-input-col">
+                <label for="inputCropWidth" class="input-mini-label" data-i18n="labelWidth">너비 (W)</label>
+                <div class="input-unit-wrap">
+                  <input type="number" id="inputCropWidth" class="input-number" min="1" max="10000" placeholder="너비" />
+                  <span class="unit-text">px</span>
+                </div>
+              </div>
+
+              <div class="resize-input-col">
+                <label for="inputCropHeight" class="input-mini-label" data-i18n="labelHeight">높이 (H)</label>
+                <div class="input-unit-wrap">
+                  <input type="number" id="inputCropHeight" class="input-number" min="1" max="10000" placeholder="높이" />
+                  <span class="unit-text">px</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Aspect Ratio Lock Checkbox Option -->
+            <div class="ratio-lock-row">
+              <label class="ratio-lock-label" id="labelCropLockRatio" for="checkCropLockRatio">
+                <input type="checkbox" id="checkCropLockRatio" />
+                <svg id="iconCropLock" class="ratio-lock-svg hidden" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <svg id="iconCropUnlock" class="ratio-lock-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                </svg>
+                <span data-i18n="labelMaintainRatio">가로세로 비율 유지</span>
+              </label>
+            </div>
+
+            <!-- Aspect Ratio Preset Chips (Free, 1:1, 4:3, 16:9) -->
+            <div class="resize-presets crop-presets">
+              <button class="btn btn-preset-chip active" data-ratio="free" data-i18n="cropRatioFree">자유</button>
+              <button class="btn btn-preset-chip" data-ratio="1:1" data-i18n="cropRatio1_1">1:1</button>
+              <button class="btn btn-preset-chip" data-ratio="4:3" data-i18n="cropRatio4_3">4:3</button>
+              <button class="btn btn-preset-chip" data-ratio="16:9" data-i18n="cropRatio16_9">16:9</button>
+            </div>
+
+            <!-- Active Crop Action Buttons (Apply / Cancel) -->
+            <div id="cropActionGroup" class="crop-action-group">
+              <button id="btnApplyCrop" class="btn btn-primary btn-sm" disabled>
+                <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span data-i18n="btnApplyCrop">자르기</span>
+              </button>
+              <button id="btnCancelCrop" class="btn btn-secondary btn-sm">
+                <svg class="btn-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <span data-i18n="btnCancelCrop">취소 (ESC)</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -502,10 +547,14 @@
               <!-- Manual Crop Overlay Layer -->
               <div id="cropOverlayLayer" class="crop-overlay-layer hidden">
                 <div id="cropSelectionBox" class="crop-selection-box hidden">
-                  <div class="crop-handle crop-handle-tl"></div>
-                  <div class="crop-handle crop-handle-tr"></div>
-                  <div class="crop-handle crop-handle-bl"></div>
-                  <div class="crop-handle crop-handle-br"></div>
+                  <div class="crop-handle crop-handle-tl" data-handle="tl"></div>
+                  <div class="crop-handle crop-handle-tc" data-handle="tc"></div>
+                  <div class="crop-handle crop-handle-tr" data-handle="tr"></div>
+                  <div class="crop-handle crop-handle-ml" data-handle="ml"></div>
+                  <div class="crop-handle crop-handle-mr" data-handle="mr"></div>
+                  <div class="crop-handle crop-handle-bl" data-handle="bl"></div>
+                  <div class="crop-handle crop-handle-bc" data-handle="bc"></div>
+                  <div class="crop-handle crop-handle-br" data-handle="br"></div>
                   <div class="crop-info-badge" id="cropInfoBadge">0 × 0</div>
                 </div>
               </div>
