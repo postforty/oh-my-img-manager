@@ -1,92 +1,28 @@
-# 스토어 등록 정보 (Store Listing Information)
+# Chrome Web Store Listing — Oh My Image Manager
 
-이 문서는 Chrome 웹 스토어, Edge 추가 기능, 웨일 스토어 등 확장 프로그램 스토어 등록 시 바로 복사하여 사용할 수 있는 텍스트 모음입니다.
+> Last Updated: 2026-09-23
 
----
+## Store Listing
 
-## 1. 기본 메타데이터
-
-| 항목 | 내용 |
-| :--- | :--- |
-| **패키지 제목** | Oh My Image Manager - 스마트 이미지 크롭 & 배경 제거(누끼) 스튜디오 |
-| **영문 제목 (선택)** | Oh My Image Manager - Smart Batch Crop & AI Background Remover |
-| **패키지 요약 (Short Description)** | 대용량 이미지 일괄 크롭 & ZIP 압축 및 온디바이스 AI 기반 실시간 배경 제거(누끼 따기)를 지원하는 스마트 이미지 매니저입니다. |
-| **카테고리** | **생산성 (Productivity)** *(권장)* 또는 **사진 (Photos)** |
-| **기본 언어** | **한국어 (Korean)** |
-| **지원 언어** | **한국어 (Korean), 영어 (English)** (브라우저 언어 자동 감지) |
-
----
-
-## 2. 전용 목적 (Single Purpose Description - 개인정보 보호 탭)
-
-> **전용 목적 설명\*** (0/1,000자) 입력란에 아래 내용을 붙여넣으세요.
-
+**Extension Name** [REQUIRED]
 ```text
-이 확장 프로그램의 전용 목적은 사용자가 외부 서버 전송 없이 브라우저 로컬 환경에서 대량의 이미지를 손쉽게 일괄 크롭 및 압축 다운로드하고, 온디바이스 AI 및 캔버스 엔진을 통해 빠르고 안전하게 이미지 배경을 제거(누끼 따기)할 수 있는 이미지 편집 유틸리티를 제공하는 것입니다.
+Oh My Image Manager - 스마트 이미지 크롭 & 배경 제거(누끼) 스튜디오
+```
+*(English Listing)*:
+```text
+Oh My Image Manager - Smart Batch Crop & AI Background Remover
 ```
 
-*(영문 입력 시)*
+**Short Description** [REQUIRED] (Max 132 chars)
 ```text
-The single purpose of this extension is to provide a local, privacy-focused image editing utility that allows users to batch crop and compress images, as well as remove image backgrounds using on-device AI and canvas tools without uploading any data to external servers.
+대용량 이미지 일괄 크롭 & ZIP 압축 및 온디바이스 AI 기반 실시간 배경 제거(누끼 따기)를 지원하는 스마트 이미지 매니저입니다.
+```
+*(English Listing)*:
+```text
+Batch image crop, ZIP compression, and on-device AI real-time background removal.
 ```
 
----
-
-## 3. 권한 요청 이유 (Permission Justifications)
-
-### ① `activeTab` 사용 근거
-```text
-사용자가 확장 프로그램 팝업에서 [현재 웹 탭 캡처 & 자동 크롭] 기능을 직접 실행했을 때, 현재 열려 있는 활성 탭의 화면을 캡처하기 위해 사용합니다.
-```
-
-### ② `downloads` 사용 근거
-```text
-일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다.
-```
-
-### ③ `storage` 사용 근거
-```text
-사용자가 설정한 크롭 비율(상/하/좌/우 마진), 기본 출력 포맷(PNG/JPG/WebP), 압축 품질, 다국어 언어 설정(한국어/영어/자동) 및 다크/라이트 테마 설정을 브라우저 로컬에 저장하여 유지하기 위해 사용합니다.
-```
-
-### ④ `clipboardWrite` 사용 근거
-```text
-배경 제거 스튜디오에서 누끼 작업이 완료된 투명 이미지를 클립보드로 즉시 복사하여, 사용자가 피그마(Figma), 포토샵, PPT 등의 프로그램에 Ctrl+V로 바로 붙여넣을 수 있도록 지원하기 위해 사용합니다.
-```
-
-### ⑤ `scripting` 사용 근거
-```text
-현재 활성 탭 캡처 및 탭 환경과의 안전한 스크립트 상호작용 처리를 위해 사용합니다.
-```
-
----
-
-## 4. 원격 코드 사용 여부 (Remote Code)
-
-> ⚠️ **선택 가이드**: **`아니요, 원격 코드 권한을 사용하고 있지 않습니다.`** 선택 권장  
-> (확장 프로그램 내의 모든 JS 라이브러리 및 Transformers.js/WASM 바이너리가 패키지 내 `lib/` 폴더에 100% 로컬 포함되어 있으므로 원격 코드를 사용하지 않습니다.)
-
-*(만약 '예'를 선택하고 근거 작성을 요구받을 경우)*
-```text
-확장 프로그램 패키지 내 로컬 번들로 포함된 WebAssembly 및 Transformers.js 추론 엔진 구동을 위한 로컬 스크립트 실행 외에 외부 서버의 원격 코드를 동적으로 다운로드하거나 실행하지 않습니다.
-```
-
----
-
-## 5. 개인정보처리방침 URL (Privacy Policy URL)
-
-> **개인정보처리방침 URL\*** 입력란에 아래 GitHub 문서 URL을 입력하세요.
-
-```text
-https://github.com/postforty/oh-my-img-manager/blob/main/PRIVACY.md
-```
-
----
-
-## 6. 상세 설명 (Description - 한국어)
-
-> 스토어의 **설명(Description)** 입력창에 아래 내용을 그대로 복사하여 붙여넣으세요.
-
+**Detailed Description (한국어 - 수정 반영본)** [REQUIRED]
 ```text
 🚀 Oh My Image Manager - 스마트 이미지 일괄 크롭 & 온디바이스 AI 누끼 따기 스튜디오
 
@@ -144,10 +80,7 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 - 버그 제보 및 기능 제안: https://github.com/postforty/oh-my-img-manager/issues
 ```
 
----
-
-## 7. 영문 설명 (Global / English Description)
-
+**Detailed Description (English - Updated)** [REQUIRED]
 ```text
 🚀 Oh My Image Manager - Smart Batch Image Cropper & AI Background Remover Studio
 
@@ -204,3 +137,62 @@ All image processing and AI computations run entirely in your local browser. You
 - Bug reports and feature requests: https://github.com/postforty/oh-my-img-manager/issues
 ```
 
+**Category** [REQUIRED]
+Productivity (생산성)
+
+**Single Purpose** [REQUIRED]
+```text
+이 확장 프로그램의 전용 목적은 사용자가 외부 서버 전송 없이 브라우저 로컬 환경에서 대량의 이미지를 손쉽게 일괄 크롭 및 압축 다운로드하고, 온디바이스 AI 및 캔버스 엔진을 통해 빠르고 안전하게 이미지 배경을 제거(누끼 따기)할 수 있는 이미지 편집 유틸리티를 제공하는 것입니다.
+```
+*(English)*:
+```text
+The single purpose of this extension is to provide a local, privacy-focused image editing utility that allows users to batch crop and compress images, as well as remove image backgrounds using on-device AI and canvas tools without uploading any data to external servers.
+```
+
+**Primary Language** [REQUIRED]
+Korean (한국어)
+
+---
+
+## Permissions Justification
+
+| Permission | Type | Justification |
+|------------|------|---------------|
+| `activeTab` | permissions | 사용자가 확장 프로그램 팝업에서 [현재 웹 탭 캡처 & 자동 크롭] 기능을 직접 실행했을 때, 현재 열려 있는 활성 탭의 화면을 캡처하기 위해 사용합니다. |
+| `downloads` | permissions | 일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다. |
+| `storage` | permissions | 사용자가 설정한 크롭 비율(상/하/좌/우 마진), 기본 출력 포맷(PNG/JPG/WebP), 압축 품질, 다국어 언어 설정(한국어/영어/자동) 및 다크/라이트 테마 설정을 브라우저 로컬에 저장하여 유지하기 위해 사용합니다. |
+| `clipboardWrite` | permissions | 배경 제거 스튜디오에서 누끼 작업이 완료된 투명 이미지를 클립보드로 즉시 복사하여, 사용자가 외부 문서 및 그래픽 도구에 바로 붙여넣을 수 있도록 지원하기 위해 사용합니다. |
+| `scripting` | permissions | 현재 활성 탭 캡처 및 탭 환경과의 안전한 스크립트 상호작용 처리를 위해 사용합니다. |
+
+---
+
+## Privacy & Data Use
+
+**Does the extension collect user data?** No
+
+### Data Use Certification
+- [x] Data is NOT sold to third parties
+- [x] Data is NOT used for purposes unrelated to the extension's core functionality
+- [x] Data is NOT used for creditworthiness or lending purposes
+
+**Privacy Policy URL** [REQUIRED]
+```text
+https://github.com/postforty/oh-my-img-manager/blob/main/PRIVACY.md
+```
+
+---
+
+## Version History
+
+| Version | Date | Changes | Status |
+|---------|------|---------|--------|
+| 1.3.0 | 2026-09-23 | Initial store submission & review fix for keyword spam policy | In Review / Pending Resubmission |
+
+---
+
+## Review Notes
+
+### Rejection History
+| Date | Reason | Fix Applied | Resubmitted |
+|------|--------|-------------|-------------|
+| 2026-09-23 | Keyword Spam (Yellow Argon): Item description contained target audience keyword list (`- E-commerce & Smart Store sellers...`) | Removed the target audience keyword section, replaced third-party references with neutral terms, and added structured How-to-Use & Support sections. | Pending |
