@@ -24,6 +24,7 @@
 - **Lossless Dual-Canvas Undo/Redo**: Full history support (`Ctrl+Z` / `Ctrl+Y`) that keeps original restore data and split comparison views 100% synchronized across crops and resizing.
 - **Seamless Clipboard Integration**: Paste images directly with `Ctrl+V` and copy cutouts with `Ctrl+C` for immediate use in Figma, Photoshop, PowerPoint, or messaging apps.
 - **Side-by-Side Split View & Background Fill**: Compare original and cutout results with an interactive slider, and easily replace backgrounds with solid white, black, or custom colors.
+- **Multi-Format Export (PNG, WEBP, JPEG, GIF) & Built-in GIF Encoder**: Full export flexibility across lossless transparent PNG/WebP, solid JPEG (with automatic white composite for transparent cutouts), and single-frame GIF with an embedded lightweight GIF89a encoder and real-time transparency/quality feedback badges.
 
 ### 2. High-Volume Batch Image Cropper & ZIP Export
 - **Drag & Drop** dozens or hundreds of images at once, or load an entire folder.
@@ -114,7 +115,7 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 2. Drag and drop an image or paste with `Ctrl + V`.
 3. Click **One-Click AI BG Removal** to automatically isolate the subject.
 4. Optionally use the **Color Picker** or **Manual Retouch Brushes (Erase / Restore)** to refine edges.
-5. Click **Download PNG** or **Copy to Clipboard (Ctrl+C)** to use your result.
+5. Select your preferred format (PNG, WEBP, JPEG, GIF) and click **Download Image** or **Copy to Clipboard (Ctrl+C)** to use your result.
 
 ### High-Volume Batch Image Cropper
 1. Click the extension toolbar icon and open the **Batch Crop Workspace**.
@@ -125,6 +126,34 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 ---
 
 ## 📜 Version History
+
+### 🚀 v1.4.0 (`2026-09-26`)
+**Multi-Format Save Studio (PNG, WEBP, JPEG, GIF) & Embedded Pure JS GIF Encoder**
+- **4 Major Export Formats**:
+  - `PNG`: Lossless alpha transparency (default).
+  - `WEBP`: Modern high-efficiency compression with full alpha channel support.
+  - `JPEG`: Compact solid-background export with automatic white (#FFFFFF) underlay synthesis preventing black-background artifacts.
+  - `GIF`: 256-color indexed palette with 1-bit transparency powered by an integrated client-side encoder.
+- **Lightweight Zero-Dependency GIF89a Encoder (`lib/gif-encoder.js`)**:
+  - Implemented client-side Median Cut color quantization, 15-bit fast LUT color mapping, and standard LZW sub-block compression without external dependencies.
+- **Real-Time Format Notice Badges**:
+  - Live warning indicators for JPEG transparency limitations and GIF 256-color dithering/edge constraints.
+- **Polished UI & Terminology**:
+  - Renamed `Download PNG` to unified `Download Image` and trimmed redundant file extension tokens from dropdown menus.
+
+---
+
+### 🚀 v1.3.0 (`2026-09-22`)
+**Numeric Crop Inputs & 8-Direction Interactive Resize Handles**
+- **Precision Crop Dimension Controls**:
+  - Direct Width (W) and Height (H) pixel inputs alongside preset ratios (`Free`, `1:1`, `4:3`, `16:9`).
+  - Strict aspect ratio preservation during resizing and edge snapping.
+- **8-Direction Resize Handles & Freeform Box Translation**:
+  - Interactive perimeter handles for flexible drag resizing and repositioning.
+- **Bidirectional Sync**:
+  - Real-time synchronization between input fields and canvas overlay geometry.
+
+---
 
 ### 🚀 v1.2.1 (`2026-09-12`)
 **AI Background Remover Progress Bar Fix & Smooth Progress Simulation**

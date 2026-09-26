@@ -458,9 +458,22 @@ class RemoverEngine {
   }
 
   /**
-   * 8. Converts canvas to Blob
+   * 8. Converts canvas to Blob (supports image/png, image/jpeg, image/webp, image/gif)
    */
-  static async toBlob(canvas, format = "image/png", quality = 1.0) {
+  static async toBlob(canvas, format = "image/png", quality = 1.0, options = {}) {
+    if (format === "image/gif") {
+      if (typeof SimpleGifEncoder === "undefined") {
+        throw new Error("SimpleGifEncoder library is not loaded");
+      }
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const isTransparent = options.transparent !== false;
+      const gifBytes = SimpleGifEncoder.encode(canvas.width, canvas.height, imgData.data, {
+        transparent: isTransparent
+      });
+      return new Blob([gifBytes], { type: "image/gif" });
+    }
+
     return new Promise((resolve, reject) => {
       canvas.toBlob(
         (blob) => {

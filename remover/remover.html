@@ -407,13 +407,42 @@
               <span data-i18n="btnRedo">다시하기</span>
             </button>
           </div>
-          <button id="btnDownloadPng" class="btn btn-primary btn-large" disabled>
+
+          <!-- Save Format Selection -->
+          <div class="save-format-row">
+            <label for="selectSaveFormat" class="format-label">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span data-i18n="labelSaveFormat">저장 포맷</span>
+            </label>
+            <select id="selectSaveFormat" class="select-format" disabled>
+              <option value="image/png" selected data-i18n="formatPngNotice">PNG - 투명 지원</option>
+              <option value="image/webp" data-i18n="formatWebpNotice">WEBP - 투명 지원 (고압축)</option>
+              <option value="image/jpeg" data-i18n="formatJpegNotice">JPEG - 투명 미지원</option>
+              <option value="image/gif" data-i18n="formatGifNotice">GIF - 투명 지원 (256색)</option>
+            </select>
+          </div>
+
+          <!-- Transparency & Quality Notice for JPEG / GIF -->
+          <div id="warnNoTransparency" class="format-notice hidden">
+            <svg class="notice-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="warnNoticeText" data-i18n="warnJpegNoTransparency">JPEG는 투명 배경을 지원하지 않아 투명 영역이 흰색으로 저장됩니다.</span>
+          </div>
+
+          <button id="btnDownloadImage" class="btn btn-primary btn-large" disabled>
             <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span data-i18n="btnDownloadPng">PNG 다운로드</span>
+            <span data-i18n="btnDownloadImage">이미지 다운로드</span>
           </button>
           <button id="btnCopyClipboard" class="btn btn-secondary" disabled>
             <svg class="btn-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -584,6 +613,7 @@
 
   <!-- Scripts -->
   <script src="../i18n.js"></script>
+  <script src="../lib/gif-encoder.js"></script>
   <script src="remover-engine.js"></script>
   <script src="remover.js"></script>
 </body>

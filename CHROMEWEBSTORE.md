@@ -159,7 +159,7 @@ Korean (한국어)
 | Permission | Type | Justification |
 |------------|------|---------------|
 | `activeTab` | permissions | 사용자가 확장 프로그램 팝업에서 [현재 웹 탭 캡처 & 자동 크롭] 기능을 직접 실행했을 때, 현재 열려 있는 활성 탭의 화면을 캡처하기 위해 사용합니다. |
-| `downloads` | permissions | 일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다. |
+| `downloads` | permissions | 일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP, GIF 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다. |
 | `storage` | permissions | 사용자가 설정한 크롭 비율(상/하/좌/우 마진), 기본 출력 포맷(PNG/JPG/WebP), 압축 품질, 다국어 언어 설정(한국어/영어/자동) 및 다크/라이트 테마 설정을 브라우저 로컬에 저장하여 유지하기 위해 사용합니다. |
 | `clipboardWrite` | permissions | 배경 제거 스튜디오에서 누끼 작업이 완료된 투명 이미지를 클립보드로 즉시 복사하여, 사용자가 외부 문서 및 그래픽 도구에 바로 붙여넣을 수 있도록 지원하기 위해 사용합니다. |
 | `scripting` | permissions | 현재 활성 탭 캡처 및 탭 환경과의 안전한 스크립트 상호작용 처리를 위해 사용합니다. |
@@ -186,6 +186,7 @@ https://github.com/postforty/oh-my-img-manager/blob/main/PRIVACY.md
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.4.0 | 2026-09-26 | Multi-format save studio (PNG, WebP, JPEG, GIF) with embedded client-side GIF89a encoder and real-time transparency notice | Ready for Submission |
 | 1.3.0 | 2026-09-23 | Initial store submission & review fix for keyword spam policy | In Review / Pending Resubmission |
 
 ---

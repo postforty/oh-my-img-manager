@@ -41,7 +41,7 @@ The single purpose of this extension is to provide a local, privacy-focused imag
 
 ### ② `downloads` 사용 근거
 ```text
-일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다.
+일괄 크롭된 이미지들이 담긴 ZIP 압축 파일 및 AI 배경 제거(누끼)가 완료된 투명 PNG, JPEG, WebP, GIF 이미지 파일을 사용자의 로컬 컴퓨터에 안전하게 다운로드하여 저장하기 위해 사용합니다.
 ```
 
 ### ③ `storage` 사용 근거
@@ -120,7 +120,7 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 - 브라우징 중 팝업 메뉴에서 클릭 한 번으로 현재 탭 화면을 캡처하고, 설정한 비율로 자동 크롭하여 저장합니다.
 
 4️⃣ 다양한 포맷 & 무손실 품질 설정
-- PNG (투명 알파 채널 지원), JPG (품질 조절 가능), WebP(초경량 최신 포맷) 지원
+- PNG (투명 알파 채널 지원), WebP (초경량 투명 포맷), JPG (품질 조절 가능), GIF (256색 팔레트) 지원
 
 5️⃣ 다국어(한국어/영어) & 다크/라이트 모드 지원
 - 한국어 및 영어를 기본 지원하며, 사용자 취향에 맞춘 다크/라이트 테마를 제공합니다.
@@ -181,7 +181,7 @@ A powerful, privacy-first Chrome Extension that lets you batch crop hundreds of 
 - Instantly capture your current browser tab, apply preset crop bounds, and download.
 
 4️⃣ Multi-Format Support & Custom Quality
-- Export to PNG (transparent), JPG (custom quality), and modern WebP.
+- Export to PNG (transparent), WebP (efficient transparency), JPG (custom quality), and GIF (256-color palette).
 
 5️⃣ Multi-Language (Korean/English) & Dark/Light Mode
 - Built-in multi-language support (Auto / Korean / English) with sleek Dark & Light themes.

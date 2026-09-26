@@ -149,7 +149,11 @@ const resizePresetChips = document.querySelectorAll(".resize-presets .btn-preset
 // Action Elements
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
-const btnDownloadPng = document.getElementById("btnDownloadPng");
+const selectSaveFormat = document.getElementById("selectSaveFormat");
+const warnNoTransparency = document.getElementById("warnNoTransparency");
+const warnNoticeText = document.getElementById("warnNoticeText");
+const btnDownloadImage = document.getElementById("btnDownloadImage") || document.getElementById("btnDownloadPng");
+const btnDownloadPng = btnDownloadImage;
 const btnCopyClipboard = document.getElementById("btnCopyClipboard");
 const btnResetImage = document.getElementById("btnResetImage");
 
@@ -553,7 +557,8 @@ function enableControls(enabled) {
     btnRunAi,
     btnEyedropper,
     btnApplyColorKey,
-    btnDownloadPng,
+    selectSaveFormat,
+    btnDownloadImage,
     btnCopyClipboard,
     btnResetImage,
     btnAutoTrim,
@@ -568,6 +573,12 @@ function enableControls(enabled) {
   ].forEach((btn) => {
     if (btn) btn.disabled = !enabled;
   });
+
+  if (!enabled) {
+    if (warnNoTransparency) warnNoTransparency.classList.add("hidden");
+  } else {
+    updateFormatNotice();
+  }
 
   if (cropPresetChips) {
     cropPresetChips.forEach((chip) => {
@@ -1196,6 +1207,7 @@ function setupBgFillControls() {
       btn.classList.add("active");
       state.bgFill = btn.dataset.bg || "transparent";
       updateCanvasDisplay();
+      updateFormatNotice();
     });
   });
 
@@ -1205,7 +1217,34 @@ function setupBgFillControls() {
     inputCustomBg.closest(".bg-fill-btn").classList.add("active");
     state.bgFill = e.target.value;
     updateCanvasDisplay();
+    updateFormatNotice();
   });
+}
+
+function updateFormatNotice() {
+  if (!warnNoTransparency) return;
+  const format = selectSaveFormat ? selectSaveFormat.value : "image/png";
+  const isJpeg = format === "image/jpeg";
+  const isGif = format === "image/gif";
+  const isTransparent = !state.bgFill || state.bgFill === "transparent";
+
+  if (state.originalImage && isJpeg && isTransparent) {
+    if (warnNoticeText) {
+      warnNoticeText.textContent = typeof I18N !== "undefined"
+        ? I18N.t("warnJpegNoTransparency")
+        : "JPEG는 투명 배경을 지원하지 않아 투명 영역이 흰색으로 저장됩니다.";
+    }
+    warnNoTransparency.classList.remove("hidden");
+  } else if (state.originalImage && isGif) {
+    if (warnNoticeText) {
+      warnNoticeText.textContent = typeof I18N !== "undefined"
+        ? I18N.t("warnGifQuality")
+        : "GIF는 256색 및 1비트 투명도를 사용하여 외곽선 경계에 계단 현상이 발생할 수 있습니다.";
+    }
+    warnNoTransparency.classList.remove("hidden");
+  } else {
+    warnNoTransparency.classList.add("hidden");
+  }
 }
 
 // -------------------------------------------------------------
@@ -1829,17 +1868,43 @@ function setupActionButtons() {
     }
   });
 
-  btnDownloadPng.addEventListener("click", async () => {
+  if (selectSaveFormat) {
+    selectSaveFormat.addEventListener("change", () => {
+      updateFormatNotice();
+    });
+  }
+
+  btnDownloadImage.addEventListener("click", async () => {
     if (!state.originalImage) return;
 
     try {
-      const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, state.bgFill);
-      const blob = await RemoverEngine.toBlob(exportCanvas, "image/png");
+      const format = selectSaveFormat ? selectSaveFormat.value : "image/png";
+      const isJpeg = format === "image/jpeg";
+      const isTransparent = !state.bgFill || state.bgFill === "transparent";
+
+      // If exporting to JPEG with transparent background, composite onto white (#FFFFFF)
+      // to prevent browser canvas from rendering transparent pixels as black
+      let exportBgFill = state.bgFill;
+      if (isJpeg && isTransparent) {
+        exportBgFill = "#ffffff";
+      }
+
+      const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, exportBgFill);
+      const blob = await RemoverEngine.toBlob(exportCanvas, format, 0.95, {
+        transparent: isTransparent
+      });
       const baseName = state.fileName.replace(/\.[^/.]+$/, "");
-      const outputFilename = `${baseName}_transparent.png`;
+
+      let ext = ".png";
+      if (format === "image/jpeg") ext = ".jpg";
+      else if (format === "image/webp") ext = ".webp";
+      else if (format === "image/gif") ext = ".gif";
+
+      const suffix = isTransparent && format !== "image/jpeg" ? "_transparent" : "_edited";
+      const outputFilename = `${baseName}${suffix}${ext}`;
 
       downloadBlob(blob, outputFilename);
-      showToast(typeof I18N !== "undefined" ? I18N.t("toastPngDownloaded") : "PNG 다운로드가 완료되었습니다!", "success");
+      showToast(typeof I18N !== "undefined" ? I18N.t("toastImageDownloaded") : "이미지 다운로드가 완료되었습니다!", "success");
     } catch (err) {
       console.error("Export failed:", err);
       alert(typeof I18N !== "undefined" ? I18N.t("alertDownloadFailed") : "다운로드 중 오류가 발생했습니다.");
