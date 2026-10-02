@@ -62,6 +62,18 @@ const state = {
     lockAspectRatio: true,
     aspectRatio: 1.0,
   },
+
+  object: {
+    active: false,
+    tool: "select", // 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text'
+    isDrawing: false,
+    isMoving: false,
+    isResizing: false,
+    isRotating: false,
+    resizeHandle: null,
+    moveStartPos: { x: 0, y: 0 },
+    initialItem: null,
+  },
 };
 
 // History Manager
@@ -83,11 +95,16 @@ const btnHelp = document.getElementById("btnHelp");
 const canvasStage = document.getElementById("canvasStage");
 const canvasTransformLayer = document.getElementById("canvasTransformLayer");
 const mainCanvas = document.getElementById("mainCanvas");
+const objectCanvas = document.getElementById("objectCanvas");
 const originalCanvas = document.getElementById("originalCanvas");
 const bgCanvas = document.getElementById("bgCanvas");
 const splitOverlayCanvas = document.getElementById("splitOverlayCanvas");
 const splitDivider = document.getElementById("splitDivider");
 const brushCursor = document.getElementById("brushCursor");
+const objectOverlayLayer = document.getElementById("objectOverlayLayer");
+const objectSelectionBox = document.getElementById("objectSelectionBox");
+const inlineTextEditor = document.getElementById("inlineTextEditor");
+let objectEngine = null;
 const cropOverlayLayer = document.getElementById("cropOverlayLayer");
 const cropSelectionBox = document.getElementById("cropSelectionBox");
 const cropInfoBadge = document.getElementById("cropInfoBadge");
@@ -146,6 +163,35 @@ const iconUnlock = document.getElementById("iconUnlock");
 const btnApplyResize = document.getElementById("btnApplyResize");
 const resizePresetChips = document.querySelectorAll(".resize-presets .btn-preset-chip");
 
+// Object Studio Elements
+const objectToolSection = document.getElementById("objectToolSection");
+const btnToggleObjectPanel = document.getElementById("btnToggleObjectPanel");
+const textToggleObject = document.getElementById("textToggleObject");
+const objectControlsPanel = document.getElementById("objectControlsPanel");
+const objToolButtons = document.querySelectorAll(".btn-obj-tool");
+const objInspector = document.getElementById("objInspector");
+const inputObjStrokeColor = document.getElementById("inputObjStrokeColor");
+const chipObjStrokeColor = document.getElementById("chipObjStrokeColor");
+const checkObjFilled = document.getElementById("checkObjFilled");
+const inputObjFillColor = document.getElementById("inputObjFillColor");
+const chipObjFillColor = document.getElementById("chipObjFillColor");
+const rangeObjStrokeWidth = document.getElementById("rangeObjStrokeWidth");
+const valObjStrokeWidth = document.getElementById("valObjStrokeWidth");
+const rangeObjOpacity = document.getElementById("rangeObjOpacity");
+const valObjOpacity = document.getElementById("valObjOpacity");
+const groupBorderRadius = document.getElementById("groupBorderRadius");
+const rangeObjRadius = document.getElementById("rangeObjRadius");
+const valObjRadius = document.getElementById("valObjRadius");
+const groupTextOptions = document.getElementById("groupTextOptions");
+const inputObjFontSize = document.getElementById("inputObjFontSize");
+const btnObjBold = document.getElementById("btnObjBold");
+const btnObjShadow = document.getElementById("btnObjShadow");
+const btnObjDuplicate = document.getElementById("btnObjDuplicate");
+const btnObjBringForward = document.getElementById("btnObjBringForward");
+const btnObjSendBackward = document.getElementById("btnObjSendBackward");
+const btnObjDelete = document.getElementById("btnObjDelete");
+const btnGlueObjects = document.getElementById("btnGlueObjects");
+
 // Action Elements
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
@@ -195,6 +241,7 @@ async function init() {
   setupBgFillControls();
   setupCropControls();
   setupResizeControls();
+  setupObjectTools();
   setupActionButtons();
   setupShortcuts();
   checkPendingCapture();
@@ -486,10 +533,17 @@ async function loadImageFile(file, customName) {
     const height = image.height;
 
     // Initialize Canvases
-    [mainCanvas, originalCanvas, bgCanvas, splitOverlayCanvas].forEach((c) => {
-      c.width = width;
-      c.height = height;
+    [mainCanvas, originalCanvas, bgCanvas, splitOverlayCanvas, objectCanvas].forEach((c) => {
+      if (c) {
+        c.width = width;
+        c.height = height;
+      }
     });
+
+    if (objectEngine) {
+      objectEngine.clearAll();
+      objectEngine.resize(width, height);
+    }
 
     canvasTransformLayer.style.width = `${width}px`;
     canvasTransformLayer.style.height = `${height}px`;
@@ -570,9 +624,17 @@ function enableControls(enabled) {
     checkLockRatio,
     inputResizeWidth,
     inputResizeHeight,
+    btnToggleObjectPanel,
+    btnGlueObjects,
   ].forEach((btn) => {
     if (btn) btn.disabled = !enabled;
   });
+
+  if (objToolButtons) {
+    objToolButtons.forEach((btn) => {
+      btn.disabled = !enabled;
+    });
+  }
 
   if (!enabled) {
     if (warnNoTransparency) warnNoTransparency.classList.add("hidden");
@@ -770,6 +832,13 @@ function setupCanvasInteractions() {
         return;
       }
 
+      // Handle Object Studio Tool Dragging / Moving / Resizing
+      if (state.object.active) {
+        brushCursor.classList.add("hidden");
+        handleObjectMouseMove(x, y, e);
+        return;
+      }
+
       // Handle Manual Crop Dragging, Moving or Resizing
       if (state.crop.isActive) {
         brushCursor.classList.add("hidden");
@@ -951,6 +1020,12 @@ function setupCanvasInteractions() {
 
       const { x, y } = getCanvasCoords(e);
 
+      // Handle Object Studio Tool Selection, Creation or Transformation
+      if (state.object.active) {
+        handleObjectMouseDown(x, y, e);
+        return;
+      }
+
       // Handle Manual Crop Box Start, Move, or Resize
       if (state.crop.isActive) {
         // 1. Check if clicked a resize handle
@@ -1019,7 +1094,11 @@ function setupCanvasInteractions() {
     });
 
     // Mouse Up
-    window.addEventListener("mouseup", () => {
+    window.addEventListener("mouseup", (e) => {
+      if (state.object.active) {
+        handleObjectMouseUp(e);
+      }
+
       if (state.crop.isResizing) {
         state.crop.isResizing = false;
         state.crop.resizeHandle = null;
@@ -1312,6 +1391,641 @@ function setupResizeControls() {
 }
 
 // -------------------------------------------------------------
+// Object Studio Controls & Vector Object Engine Integration
+// -------------------------------------------------------------
+function setupObjectTools() {
+  if (!objectCanvas) return;
+  objectEngine = new ObjectEngine(objectCanvas);
+
+  // Toggle Object Studio Panel
+  if (btnToggleObjectPanel) {
+    btnToggleObjectPanel.addEventListener("click", () => {
+      if (!state.originalImage) return;
+      const willOpen = objectControlsPanel.classList.contains("hidden");
+      setObjectStudioMode(willOpen);
+    });
+  }
+
+  // Tool Selection Buttons
+  if (objToolButtons) {
+    objToolButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tool = btn.dataset.tool;
+        setObjectActiveTool(tool);
+      });
+    });
+  }
+
+  // Stroke Color Input
+  if (inputObjStrokeColor) {
+    inputObjStrokeColor.addEventListener("input", (e) => {
+      const color = e.target.value;
+      if (chipObjStrokeColor) chipObjStrokeColor.style.backgroundColor = color;
+      objectEngine.defaultStyle.strokeColor = color;
+      const cur = objectEngine.getSelectedItem();
+      if (cur) {
+        objectEngine.updateItem(cur.id, { strokeColor: color });
+      }
+    });
+  }
+
+  // Fill Toggle & Color
+  if (checkObjFilled) {
+    checkObjFilled.addEventListener("change", (e) => {
+      const isFilled = e.target.checked;
+      objectEngine.defaultStyle.isFilled = isFilled;
+      const cur = objectEngine.getSelectedItem();
+      if (cur) {
+        objectEngine.updateItem(cur.id, { isFilled });
+      }
+    });
+  }
+
+  if (inputObjFillColor) {
+    inputObjFillColor.addEventListener("input", (e) => {
+      const color = e.target.value;
+      if (chipObjFillColor) chipObjFillColor.style.backgroundColor = color;
+      objectEngine.defaultStyle.fillColor = color;
+      const cur = objectEngine.getSelectedItem();
+      if (cur) {
+        objectEngine.updateItem(cur.id, { fillColor: color });
+      }
+    });
+  }
+
+  // Stroke Width Slider
+  if (rangeObjStrokeWidth) {
+    rangeObjStrokeWidth.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valObjStrokeWidth) valObjStrokeWidth.textContent = `${val}px`;
+      objectEngine.defaultStyle.strokeWidth = val;
+      const cur = objectEngine.getSelectedItem();
+      if (cur) {
+        objectEngine.updateItem(cur.id, { strokeWidth: val });
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  // Opacity Slider
+  if (rangeObjOpacity) {
+    rangeObjOpacity.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valObjOpacity) valObjOpacity.textContent = `${val}%`;
+      const opacity = val / 100;
+      objectEngine.defaultStyle.opacity = opacity;
+      const cur = objectEngine.getSelectedItem();
+      if (cur) {
+        objectEngine.updateItem(cur.id, { opacity });
+      }
+    });
+  }
+
+  // Border Radius Slider (Rect)
+  if (rangeObjRadius) {
+    rangeObjRadius.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valObjRadius) valObjRadius.textContent = `${val}px`;
+      objectEngine.defaultStyle.borderRadius = val;
+      const cur = objectEngine.getSelectedItem();
+      if (cur && cur.type === "rect") {
+        objectEngine.updateItem(cur.id, { borderRadius: val });
+      }
+    });
+  }
+
+  // Font Size
+  if (inputObjFontSize) {
+    inputObjFontSize.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (isNaN(val) || val < 10) return;
+      objectEngine.defaultStyle.fontSize = val;
+      const cur = objectEngine.getSelectedItem();
+      if (cur && cur.type === "text") {
+        const m = objectEngine.measureText(cur.text, val, cur.isBold, cur.fontFamily);
+        objectEngine.updateItem(cur.id, { fontSize: val, width: m.width, height: m.height });
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  // Bold & Shadow Buttons
+  if (btnObjBold) {
+    btnObjBold.addEventListener("click", () => {
+      const cur = objectEngine.getSelectedItem();
+      const nextBold = cur && cur.type === "text" ? !cur.isBold : !objectEngine.defaultStyle.isBold;
+      objectEngine.defaultStyle.isBold = nextBold;
+      btnObjBold.classList.toggle("active", nextBold);
+      if (cur && cur.type === "text") {
+        const m = objectEngine.measureText(cur.text, cur.fontSize, nextBold, cur.fontFamily);
+        objectEngine.updateItem(cur.id, { isBold: nextBold, width: m.width, height: m.height });
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  if (btnObjShadow) {
+    btnObjShadow.addEventListener("click", () => {
+      const cur = objectEngine.getSelectedItem();
+      const nextShadow = cur && cur.type === "text" ? !cur.hasTextShadow : !objectEngine.defaultStyle.hasTextShadow;
+      objectEngine.defaultStyle.hasTextShadow = nextShadow;
+      btnObjShadow.classList.toggle("active", nextShadow);
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { hasTextShadow: nextShadow });
+      }
+    });
+  }
+
+  // Layer & Manage Actions
+  if (btnObjDuplicate) {
+    btnObjDuplicate.addEventListener("click", () => {
+      if (objectEngine && objectEngine.selectedId) {
+        objectEngine.duplicateItem(objectEngine.selectedId);
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  if (btnObjBringForward) {
+    btnObjBringForward.addEventListener("click", () => {
+      if (objectEngine && objectEngine.selectedId) {
+        objectEngine.bringForward(objectEngine.selectedId);
+      }
+    });
+  }
+
+  if (btnObjSendBackward) {
+    btnObjSendBackward.addEventListener("click", () => {
+      if (objectEngine && objectEngine.selectedId) {
+        objectEngine.sendBackward(objectEngine.selectedId);
+      }
+    });
+  }
+
+  if (btnObjDelete) {
+    btnObjDelete.addEventListener("click", deleteSelectedObject);
+  }
+
+  if (btnGlueObjects) {
+    btnGlueObjects.addEventListener("click", glueObjectsToMainCanvas);
+  }
+
+  setupInlineTextEditor();
+}
+
+function setObjectStudioMode(active) {
+  state.object.active = active;
+  if (objectControlsPanel) {
+    objectControlsPanel.classList.toggle("hidden", !active);
+  }
+  if (textToggleObject) {
+    textToggleObject.textContent = active
+      ? (typeof I18N !== "undefined" ? I18N.t("btnCloseObject") : "닫기")
+      : (typeof I18N !== "undefined" ? I18N.t("btnOpenObject") : "열기");
+  }
+  if (btnToggleObjectPanel) {
+    btnToggleObjectPanel.classList.toggle("active", active);
+  }
+
+  if (active) {
+    if (state.crop && state.crop.isActive) setCropMode(false);
+    if (state.colorKey && state.colorKey.eyedropperActive) {
+      state.colorKey.eyedropperActive = false;
+      if (btnEyedropper) btnEyedropper.classList.remove("active");
+      canvasStage.classList.remove("eyedropper-active");
+    }
+    if (brushCursor) brushCursor.classList.add("hidden");
+    if (objectOverlayLayer) objectOverlayLayer.classList.remove("hidden");
+    setObjectActiveTool(state.object.tool || "select");
+  } else {
+    if (objectOverlayLayer) objectOverlayLayer.classList.add("hidden");
+    if (inlineTextEditor) inlineTextEditor.classList.add("hidden");
+    if (objectEngine) objectEngine.clearSelection();
+    updateObjectSelectionUI();
+  }
+}
+
+function setObjectActiveTool(toolName) {
+  state.object.tool = toolName;
+  if (objToolButtons) {
+    objToolButtons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tool === toolName);
+    });
+  }
+
+  // Update contextual inspector visibility
+  if (groupBorderRadius) {
+    groupBorderRadius.classList.toggle("hidden", toolName !== "rect" && toolName !== "select");
+  }
+  if (groupTextOptions) {
+    groupTextOptions.classList.toggle("hidden", toolName !== "text" && toolName !== "select");
+  }
+  if (groupStrokeWidth) {
+    groupStrokeWidth.classList.toggle("hidden", toolName === "text");
+  }
+}
+
+function updateObjectSelectionUI() {
+  if (!objectEngine) return;
+  const item = objectEngine.getSelectedItem();
+
+  if (btnGlueObjects) {
+    btnGlueObjects.disabled = !objectEngine.hasItems();
+  }
+
+  const hasSelection = !!item;
+  if (btnObjDuplicate) btnObjDuplicate.disabled = !hasSelection;
+  if (btnObjBringForward) btnObjBringForward.disabled = !hasSelection;
+  if (btnObjSendBackward) btnObjSendBackward.disabled = !hasSelection;
+  if (btnObjDelete) btnObjDelete.disabled = !hasSelection;
+
+  if (!item || !objectSelectionBox) {
+    if (objectSelectionBox) objectSelectionBox.classList.add("hidden");
+    return;
+  }
+
+  // Compute selection box coordinates
+  let left = item.x;
+  let top = item.y;
+  let width = item.width;
+  let height = item.height;
+
+  if (item.type === "line" || item.type === "arrow") {
+    left = Math.min(item.startX, item.endX);
+    top = Math.min(item.startY, item.endY);
+    width = Math.max(12, Math.abs(item.endX - item.startX));
+    height = Math.max(12, Math.abs(item.endY - item.startY));
+  }
+
+  objectSelectionBox.style.left = `${left}px`;
+  objectSelectionBox.style.top = `${top}px`;
+  objectSelectionBox.style.width = `${width}px`;
+  objectSelectionBox.style.height = `${height}px`;
+  objectSelectionBox.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : "none";
+  objectSelectionBox.classList.remove("hidden");
+
+  // Sync contextual inspector values
+  if (inputObjStrokeColor && item.strokeColor) {
+    inputObjStrokeColor.value = item.strokeColor;
+    if (chipObjStrokeColor) chipObjStrokeColor.style.backgroundColor = item.strokeColor;
+  }
+  if (checkObjFilled && typeof item.isFilled === "boolean") {
+    checkObjFilled.checked = item.isFilled;
+  }
+  if (inputObjFillColor && item.fillColor) {
+    inputObjFillColor.value = item.fillColor;
+    if (chipObjFillColor) chipObjFillColor.style.backgroundColor = item.fillColor;
+  }
+  if (rangeObjStrokeWidth && typeof item.strokeWidth === "number") {
+    rangeObjStrokeWidth.value = item.strokeWidth;
+    if (valObjStrokeWidth) valObjStrokeWidth.textContent = `${item.strokeWidth}px`;
+  }
+  if (rangeObjOpacity && typeof item.opacity === "number") {
+    const pct = Math.round(item.opacity * 100);
+    rangeObjOpacity.value = pct;
+    if (valObjOpacity) valObjOpacity.textContent = `${pct}%`;
+  }
+  if (rangeObjRadius && typeof item.borderRadius === "number" && groupBorderRadius) {
+    groupBorderRadius.classList.remove("hidden");
+    rangeObjRadius.value = item.borderRadius;
+    if (valObjRadius) valObjRadius.textContent = `${item.borderRadius}px`;
+  } else if (groupBorderRadius && item.type !== "rect") {
+    groupBorderRadius.classList.add("hidden");
+  }
+
+  if (item.type === "text" && groupTextOptions) {
+    groupTextOptions.classList.remove("hidden");
+    if (inputObjFontSize && item.fontSize) inputObjFontSize.value = item.fontSize;
+    if (btnObjBold) btnObjBold.classList.toggle("active", !!item.isBold);
+    if (btnObjShadow) btnObjShadow.classList.toggle("active", !!item.hasTextShadow);
+    if (groupStrokeWidth) groupStrokeWidth.classList.add("hidden");
+  } else if (groupTextOptions) {
+    groupTextOptions.classList.add("hidden");
+    if (groupStrokeWidth) groupStrokeWidth.classList.remove("hidden");
+  }
+}
+
+function deleteSelectedObject() {
+  if (objectEngine && objectEngine.selectedId) {
+    objectEngine.removeItem(objectEngine.selectedId);
+    updateObjectSelectionUI();
+  }
+}
+
+function setupInlineTextEditor() {
+  if (!inlineTextEditor) return;
+
+  const commitText = () => {
+    if (inlineTextEditor.classList.contains("hidden")) return;
+    const currentId = inlineTextEditor.dataset.itemId;
+    const item = objectEngine ? objectEngine.getItemById(currentId) : null;
+    const textVal = inlineTextEditor.value.trim();
+
+    if (item && textVal) {
+      const m = objectEngine.measureText(textVal, item.fontSize, item.isBold, item.fontFamily);
+      objectEngine.updateItem(item.id, {
+        text: textVal,
+        width: m.width,
+        height: m.height
+      });
+    } else if (item && !textVal) {
+      objectEngine.removeItem(item.id);
+    }
+
+    inlineTextEditor.classList.add("hidden");
+    inlineTextEditor.value = "";
+    inlineTextEditor.dataset.itemId = "";
+    state.object.isEditingText = false;
+    updateObjectSelectionUI();
+  };
+
+  inlineTextEditor.addEventListener("blur", commitText);
+
+  inlineTextEditor.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      commitText();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      inlineTextEditor.classList.add("hidden");
+      state.object.isEditingText = false;
+      updateObjectSelectionUI();
+    }
+  });
+}
+
+function openInlineTextEditor(item) {
+  if (!inlineTextEditor || !item) return;
+  state.object.isEditingText = true;
+  inlineTextEditor.dataset.itemId = item.id;
+  inlineTextEditor.value = item.text || "";
+
+  const fontStyle = item.isBold ? "bold " : "normal ";
+  inlineTextEditor.style.font = `${fontStyle}${item.fontSize}px ${item.fontFamily || "Inter, system-ui, sans-serif"}`;
+  inlineTextEditor.style.color = item.fillColor || "#ffffff";
+  inlineTextEditor.style.left = `${item.x}px`;
+  inlineTextEditor.style.top = `${item.y}px`;
+  inlineTextEditor.style.width = `${Math.max(120, item.width + 20)}px`;
+  inlineTextEditor.style.height = `${Math.max(40, item.height + 10)}px`;
+  inlineTextEditor.style.textAlign = item.textAlign || "center";
+
+  inlineTextEditor.classList.remove("hidden");
+  setTimeout(() => {
+    inlineTextEditor.focus();
+    inlineTextEditor.select();
+  }, 30);
+}
+
+function handleObjectMouseDown(x, y, e) {
+  if (!objectEngine) return;
+
+  // 1. Check Handle Click
+  if (e.target && e.target.classList.contains("obj-handle")) {
+    const handle = e.target.dataset.handle;
+    state.object.isResizing = true;
+    state.object.resizeHandle = handle;
+    state.object.moveStartPos = { x, y };
+    state.object.initialItem = JSON.parse(JSON.stringify(objectEngine.getSelectedItem()));
+    return;
+  }
+
+  // 2. Check Rotate Handle Click
+  if (e.target && e.target.classList.contains("obj-rotate-handle")) {
+    state.object.isRotating = true;
+    state.object.moveStartPos = { x, y };
+    state.object.initialItem = JSON.parse(JSON.stringify(objectEngine.getSelectedItem()));
+    return;
+  }
+
+  // 3. New Object Creation Tool
+  const tool = state.object.tool;
+  if (tool && tool !== "select") {
+    state.object.isDrawing = true;
+    state.object.drawStartPos = { x, y };
+
+    const def = objectEngine.defaultStyle;
+    let newItem = {
+      type: tool,
+      x,
+      y,
+      width: 1,
+      height: 1,
+      strokeColor: def.strokeColor,
+      strokeWidth: def.strokeWidth,
+      fillColor: def.fillColor,
+      isFilled: def.isFilled,
+      opacity: def.opacity,
+      rotation: 0
+    };
+
+    if (tool === "rect") {
+      newItem.borderRadius = def.borderRadius;
+    } else if (tool === "line" || tool === "arrow") {
+      newItem.startX = x;
+      newItem.startY = y;
+      newItem.endX = x + 1;
+      newItem.endY = y + 1;
+    } else if (tool === "text") {
+      newItem.text = "텍스트 입력";
+      newItem.fontSize = def.fontSize;
+      newItem.fontFamily = def.fontFamily;
+      newItem.isBold = def.isBold;
+      newItem.textAlign = def.textAlign;
+      newItem.hasTextShadow = def.hasTextShadow;
+      const m = objectEngine.measureText(newItem.text, newItem.fontSize, newItem.isBold, newItem.fontFamily);
+      newItem.width = m.width;
+      newItem.height = m.height;
+    }
+
+    objectEngine.addItem(newItem);
+    updateObjectSelectionUI();
+    return;
+  }
+
+  // 4. Select Tool Hit Testing
+  const hit = objectEngine.hitTest(x, y);
+  if (hit) {
+    objectEngine.selectItem(hit.id);
+    state.object.isMoving = true;
+    state.object.moveStartPos = { x, y };
+    state.object.initialItem = JSON.parse(JSON.stringify(hit));
+    if (objectSelectionBox) objectSelectionBox.classList.add("moving");
+    updateObjectSelectionUI();
+
+    // Double Click to open text editor
+    if (hit.type === "text" && e.detail >= 2) {
+      openInlineTextEditor(hit);
+    }
+  } else {
+    objectEngine.clearSelection();
+    updateObjectSelectionUI();
+  }
+}
+
+function handleObjectMouseMove(x, y, e) {
+  if (!objectEngine) return;
+
+  // 1. Rotating
+  if (state.object.isRotating && state.object.initialItem) {
+    const item = state.object.initialItem;
+    const cx = item.x + item.width / 2;
+    const cy = item.y + item.height / 2;
+    const rad = Math.atan2(y - cy, x - cx);
+    const deg = Math.round(rad * (180 / Math.PI)) - 90;
+    objectEngine.updateItem(item.id, { rotation: (deg + 360) % 360 });
+    updateObjectSelectionUI();
+    return;
+  }
+
+  // 2. Resizing
+  if (state.object.isResizing && state.object.initialItem && state.object.resizeHandle) {
+    const init = state.object.initialItem;
+    const handle = state.object.resizeHandle;
+    const dx = x - state.object.moveStartPos.x;
+    const dy = y - state.object.moveStartPos.y;
+
+    if (init.type === "line" || init.type === "arrow") {
+      if (handle === "tl") {
+        objectEngine.updateItem(init.id, { startX: init.startX + dx, startY: init.startY + dy });
+      } else {
+        objectEngine.updateItem(init.id, { endX: init.endX + dx, endY: init.endY + dy });
+      }
+    } else {
+      let newX = init.x;
+      let newY = init.y;
+      let newW = init.width;
+      let newH = init.height;
+
+      if (handle.includes("r")) newW = Math.max(15, init.width + dx);
+      if (handle.includes("l")) {
+        newW = Math.max(15, init.width - dx);
+        newX = init.x + init.width - newW;
+      }
+      if (handle.includes("b")) newH = Math.max(15, init.height + dy);
+      if (handle.includes("t")) {
+        newH = Math.max(15, init.height - dy);
+        newY = init.y + init.height - newH;
+      }
+
+      objectEngine.updateItem(init.id, { x: newX, y: newY, width: newW, height: newH });
+    }
+    updateObjectSelectionUI();
+    return;
+  }
+
+  // 3. Moving
+  if (state.object.isMoving && state.object.initialItem) {
+    const init = state.object.initialItem;
+    const dx = x - state.object.moveStartPos.x;
+    const dy = y - state.object.moveStartPos.y;
+
+    if (init.type === "line" || init.type === "arrow") {
+      objectEngine.updateItem(init.id, {
+        startX: init.startX + dx,
+        startY: init.startY + dy,
+        endX: init.endX + dx,
+        endY: init.endY + dy,
+        x: init.x + dx,
+        y: init.y + dy
+      });
+    } else {
+      objectEngine.updateItem(init.id, { x: init.x + dx, y: init.y + dy });
+    }
+    updateObjectSelectionUI();
+    return;
+  }
+
+  // 4. Drawing New Item
+  if (state.object.isDrawing && objectEngine.selectedId) {
+    const start = state.object.drawStartPos;
+    const curId = objectEngine.selectedId;
+    const item = objectEngine.getItemById(curId);
+    if (!item) return;
+
+    if (item.type === "line" || item.type === "arrow") {
+      objectEngine.updateItem(curId, {
+        startX: start.x,
+        startY: start.y,
+        endX: x,
+        endY: y,
+        x: Math.min(start.x, x),
+        y: Math.min(start.y, y),
+        width: Math.abs(x - start.x),
+        height: Math.abs(y - start.y)
+      });
+    } else {
+      const left = Math.min(start.x, x);
+      const top = Math.min(start.y, y);
+      const w = Math.max(5, Math.abs(x - start.x));
+      const h = Math.max(5, Math.abs(y - start.y));
+
+      objectEngine.updateItem(curId, { x: left, y: top, width: w, height: h });
+    }
+    updateObjectSelectionUI();
+  }
+}
+
+function handleObjectMouseUp() {
+  if (!state.object.active || !objectEngine) return;
+
+  if (state.object.isDrawing) {
+    const cur = objectEngine.getSelectedItem();
+    if (cur) {
+      if (cur.type === "text") {
+        openInlineTextEditor(cur);
+      } else if (cur.width < 8 && cur.height < 8) {
+        // Correct tiny accidental clicks to standard default size
+        objectEngine.updateItem(cur.id, { width: 120, height: 90 });
+      }
+    }
+    state.object.isDrawing = false;
+    setObjectActiveTool("select");
+  }
+
+  state.object.isMoving = false;
+  state.object.isResizing = false;
+  state.object.isRotating = false;
+  state.object.resizeHandle = null;
+  state.object.initialItem = null;
+
+  if (objectSelectionBox) {
+    objectSelectionBox.classList.remove("moving");
+  }
+  updateObjectSelectionUI();
+}
+
+function glueObjectsToMainCanvas() {
+  if (!objectEngine || !objectEngine.hasItems()) return;
+
+  const ctx = mainCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(objectCanvas, 0, 0);
+
+  objectEngine.clearAll();
+  updateObjectSelectionUI();
+
+  historyManager.pushState(mainCanvas, originalCanvas);
+  updateUndoRedoButtons();
+  updateCanvasDisplay();
+
+  showToast(
+    typeof I18N !== "undefined"
+      ? I18N.t("toastObjectsGlued")
+      : "모든 개체가 캔버스에 영구 접착되었습니다! (Ctrl+Z로 되돌리기 가능)",
+    "success"
+  );
+}
+
+function getCompositeExportCanvas(customBgFill) {
+  const bg = typeof customBgFill !== "undefined" ? customBgFill : state.bgFill;
+  const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, bg);
+  if (objectEngine && objectEngine.hasItems()) {
+    const ctx = exportCanvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(objectCanvas, 0, 0);
+  }
+  return exportCanvas;
+}
+
+// -------------------------------------------------------------
 // Crop & Trim Controls
 // -------------------------------------------------------------
 function setupCropControls() {
@@ -1519,6 +2233,9 @@ function setCropMode(active) {
   }
 
   if (active) {
+    if (state.object && state.object.active) {
+      setObjectStudioMode(false);
+    }
     if (state.colorKey && state.colorKey.eyedropperActive) {
       state.colorKey.eyedropperActive = false;
       if (btnEyedropper) btnEyedropper.classList.remove("active");
@@ -1682,6 +2399,10 @@ function applyManualCrop() {
   const rect = state.crop.currentRect;
   if (rect.width < 5 || rect.height < 5) return;
 
+  if (objectEngine && objectEngine.hasItems()) {
+    glueObjectsToMainCanvas();
+  }
+
   // Crop mainCanvas and originalCanvas synchronously
   const croppedMain = RemoverEngine.cropCanvas(mainCanvas, rect);
   const croppedOriginal = RemoverEngine.cropCanvas(originalCanvas, rect);
@@ -1705,6 +2426,10 @@ function applyManualCrop() {
 
 function applyAutoTrim() {
   if (!state.originalImage) return;
+
+  if (objectEngine && objectEngine.hasItems()) {
+    glueObjectsToMainCanvas();
+  }
 
   const result = RemoverEngine.trimCanvas(mainCanvas, { padding: 0 });
 
@@ -1767,6 +2492,10 @@ function applyResize() {
     return;
   }
 
+  if (objectEngine && objectEngine.hasItems()) {
+    glueObjectsToMainCanvas();
+  }
+
   // High quality step-down resize on both main active canvas and pristine original canvas
   const resizedMain = RemoverEngine.resizeCanvas(mainCanvas, targetW, targetH);
   const resizedOriginal = RemoverEngine.resizeCanvas(originalCanvas, targetW, targetH);
@@ -1803,6 +2532,13 @@ function syncCanvasDimensions(width, height, newMainCanvas = null, newOriginalCa
   bgCanvas.height = height;
   splitOverlayCanvas.width = width;
   splitOverlayCanvas.height = height;
+  if (objectCanvas) {
+    objectCanvas.width = width;
+    objectCanvas.height = height;
+  }
+  if (objectEngine) {
+    objectEngine.resize(width, height);
+  }
 
   // Update DOM transform layer size
   canvasTransformLayer.style.width = `${width}px`;
@@ -1889,7 +2625,7 @@ function setupActionButtons() {
         exportBgFill = "#ffffff";
       }
 
-      const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, exportBgFill);
+      const exportCanvas = getCompositeExportCanvas(exportBgFill);
       const blob = await RemoverEngine.toBlob(exportCanvas, format, 0.95, {
         transparent: isTransparent
       });
@@ -1915,7 +2651,7 @@ function setupActionButtons() {
     if (!state.originalImage) return;
 
     try {
-      const exportCanvas = RemoverEngine.renderWithBackground(mainCanvas, state.bgFill);
+      const exportCanvas = getCompositeExportCanvas(state.bgFill);
       await RemoverEngine.copyToClipboard(exportCanvas);
       showToast(typeof I18N !== "undefined" ? I18N.t("toastCopied") : "투명 이미지가 클립보드에 복사되었습니다!", "success");
     } catch (err) {
@@ -1927,6 +2663,8 @@ function setupActionButtons() {
   btnResetImage.addEventListener("click", () => {
     if (confirm(typeof I18N !== "undefined" ? I18N.t("confirmResetImage") : "현재 편집 중인 이미지를 닫고 새 이미지를 여시겠습니까?")) {
       setCropMode(false);
+      setObjectStudioMode(false);
+      if (objectEngine) objectEngine.clearAll();
       state.originalImage = null;
       editorWorkspace.classList.add("hidden");
       dropZone.classList.remove("hidden");
@@ -1959,7 +2697,36 @@ function updateUndoRedoButtons() {
 
 function setupShortcuts() {
   window.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
+
+    // Delete / Backspace: Delete selected object
+    if ((e.key === "Delete" || e.key === "Backspace") && state.object.active && objectEngine && objectEngine.selectedId) {
+      e.preventDefault();
+      deleteSelectedObject();
+      return;
+    }
+
+    // Ctrl + D: Duplicate selected object
+    if (e.ctrlKey && (e.key === "d" || e.key === "D") && state.object.active && objectEngine && objectEngine.selectedId) {
+      e.preventDefault();
+      objectEngine.duplicateItem(objectEngine.selectedId);
+      updateObjectSelectionUI();
+      return;
+    }
+
+    // Escape: Clear object selection
+    if (e.key === "Escape" && state.object.active && objectEngine && objectEngine.selectedId) {
+      objectEngine.clearSelection();
+      updateObjectSelectionUI();
+      return;
+    }
+
+    // Enter: Glue objects if object studio open and has items
+    if (e.key === "Enter" && state.object.active && objectEngine && objectEngine.hasItems() && !state.object.isEditingText) {
+      e.preventDefault();
+      glueObjectsToMainCanvas();
+      return;
+    }
 
     // Ctrl + Z: Undo
     if (e.ctrlKey && (e.key === "z" || e.key === "Z") && !e.shiftKey) {

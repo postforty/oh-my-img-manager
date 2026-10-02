@@ -389,7 +389,173 @@
           </button>
         </section>
 
-        <!-- 7. History & Export Actions -->
+        <!-- 7. 개체 및 텍스트 추가 (Object Studio) -->
+        <section class="control-section object-tool-section" id="objectToolSection">
+          <div class="section-header-row">
+            <h2 class="section-title">
+              <span class="step-num">7</span>
+              <span data-i18n="sectionObjectTitle">개체 & 텍스트 추가</span>
+            </h2>
+            <button id="btnToggleObjectPanel" class="btn btn-tiny btn-outline" data-i18n-title="btnToggleObjectTitle" title="도구 패널 토글">
+              <span id="textToggleObject" data-i18n="btnOpenObject">열기</span>
+            </button>
+          </div>
+
+          <!-- Object Studio Controls Container -->
+          <div id="objectControlsPanel" class="object-controls-panel hidden">
+            <!-- Tool Selection Buttons -->
+            <div class="obj-tool-grid">
+              <button class="btn btn-obj-tool active" data-tool="select" title="개체 선택/이동 (V)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 3l7 18 3-7 7-3L3 3z"></path>
+                </svg>
+                <span data-i18n="toolSelect">선택</span>
+              </button>
+              <button class="btn btn-obj-tool" data-tool="rect" title="사각형 그리기 (R)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                </svg>
+                <span data-i18n="toolRect">사각형</span>
+              </button>
+              <button class="btn btn-obj-tool" data-tool="circle" title="원형/타원 그리기 (C)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="9"></circle>
+                </svg>
+                <span data-i18n="toolCircle">원형</span>
+              </button>
+              <button class="btn btn-obj-tool" data-tool="arrow" title="화살표 그리기 (A)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="5" y1="19" x2="19" y2="5"></line>
+                  <polyline points="9 5 19 5 19 15"></polyline>
+                </svg>
+                <span data-i18n="toolArrow">화살표</span>
+              </button>
+              <button class="btn btn-obj-tool" data-tool="line" title="직선 그리기 (L)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="4" y1="20" x2="20" y2="4"></line>
+                </svg>
+                <span data-i18n="toolLine">직선</span>
+              </button>
+              <button class="btn btn-obj-tool" data-tool="text" title="텍스트 입력 (T)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                  <line x1="12" y1="4" x2="12" y2="20"></line>
+                  <line x1="9" y1="20" x2="15" y2="20"></line>
+                </svg>
+                <span data-i18n="toolText">텍스트</span>
+              </button>
+            </div>
+
+            <!-- Contextual Properties Inspector -->
+            <div class="obj-inspector" id="objInspector">
+              <!-- Colors & Fill Row -->
+              <div class="obj-prop-row">
+                <div class="obj-prop-col">
+                  <span class="input-mini-label" data-i18n="labelStrokeColor">외곽선</span>
+                  <label class="custom-color-label">
+                    <input type="color" id="inputObjStrokeColor" value="#38bdf8" />
+                    <span class="color-chip" id="chipObjStrokeColor" style="background-color: #38bdf8"></span>
+                  </label>
+                </div>
+                <div class="obj-prop-col" id="colObjFill">
+                  <span class="input-mini-label" data-i18n="labelFillColor">채우기</span>
+                  <div class="fill-toggle-wrap">
+                    <input type="checkbox" id="checkObjFilled" />
+                    <label class="custom-color-label">
+                      <input type="color" id="inputObjFillColor" value="#ffffff" />
+                      <span class="color-chip" id="chipObjFillColor" style="background-color: #ffffff"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stroke Width Slider -->
+              <div class="slider-group" id="groupStrokeWidth">
+                <div class="slider-header">
+                  <label class="slider-label" for="rangeObjStrokeWidth" data-i18n="labelStrokeWidth">선 굵기</label>
+                  <span class="slider-value" id="valObjStrokeWidth">4px</span>
+                </div>
+                <input type="range" id="rangeObjStrokeWidth" min="1" max="40" value="4" class="slider-range" />
+              </div>
+
+              <!-- Opacity Slider -->
+              <div class="slider-group">
+                <div class="slider-header">
+                  <label class="slider-label" for="rangeObjOpacity" data-i18n="labelOpacity">불투명도</label>
+                  <span class="slider-value" id="valObjOpacity">100%</span>
+                </div>
+                <input type="range" id="rangeObjOpacity" min="10" max="100" value="100" class="slider-range" />
+              </div>
+
+              <!-- Border Radius Slider (Rect only) -->
+              <div class="slider-group" id="groupBorderRadius">
+                <div class="slider-header">
+                  <label class="slider-label" for="rangeObjRadius" data-i18n="labelBorderRadius">모서리 둥글기</label>
+                  <span class="slider-value" id="valObjRadius">8px</span>
+                </div>
+                <input type="range" id="rangeObjRadius" min="0" max="80" value="8" class="slider-range" />
+              </div>
+
+              <!-- Text Options Row (Text only) -->
+              <div class="obj-text-options hidden" id="groupTextOptions">
+                <div class="obj-prop-row">
+                  <div class="obj-prop-col">
+                    <span class="input-mini-label" data-i18n="labelFontSize">폰트 크기</span>
+                    <input type="number" id="inputObjFontSize" class="input-number" min="12" max="150" value="28" style="width: 70px" />
+                  </div>
+                  <div class="obj-prop-col">
+                    <span class="input-mini-label" data-i18n="labelTextStyle">스타일</span>
+                    <div class="btn-group-tiny">
+                      <button id="btnObjBold" class="btn btn-tiny active" title="굵게"><b>B</b></button>
+                      <button id="btnObjShadow" class="btn btn-tiny active" title="가독성 외곽선">S</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Layer & Manage Actions -->
+            <div class="obj-manage-row">
+              <button id="btnObjDuplicate" class="btn btn-tiny btn-outline" disabled data-i18n-title="btnDuplicateTitle" title="복제 (Ctrl+D)">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span data-i18n="btnDuplicate">복제</span>
+              </button>
+              <button id="btnObjBringForward" class="btn btn-tiny btn-outline" disabled data-i18n-title="btnForwardTitle" title="앞으로 가져오기">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+                <span data-i18n="btnForward">앞으로</span>
+              </button>
+              <button id="btnObjSendBackward" class="btn btn-tiny btn-outline" disabled data-i18n-title="btnBackwardTitle" title="뒤로 보내기">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                <span data-i18n="btnBackward">뒤로</span>
+              </button>
+              <button id="btnObjDelete" class="btn btn-tiny btn-danger" disabled data-i18n-title="btnDeleteTitle" title="삭제 (Del)">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span data-i18n="btnDelete">삭제</span>
+              </button>
+            </div>
+
+            <!-- Glue Objects Button -->
+            <button id="btnGlueObjects" class="btn btn-primary btn-block btn-glue" disabled>
+              <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+              </svg>
+              <span data-i18n="btnGlueObjects">개체 접착 (캔버스 병합)</span>
+            </button>
+            <p class="glue-hint" data-i18n="glueHintText">💡 접착하지 않아도 저장 시 자동 합성됩니다.</p>
+          </div>
+        </section>
+
+        <!-- 8. History & Export Actions -->
         <section class="action-section">
           <div class="history-actions">
             <button id="btnUndo" class="btn btn-icon-text" disabled data-i18n-title="btnUndoTitle" title="실행 취소 (Ctrl+Z)">
@@ -560,6 +726,8 @@
               <canvas id="originalCanvas" class="hidden"></canvas>
               <!-- Active Editing Canvas (Displays transparent cut-out) -->
               <canvas id="mainCanvas"></canvas>
+              <!-- Vector Object Real-time Canvas -->
+              <canvas id="objectCanvas"></canvas>
               <!-- Split View Left Overlay Canvas -->
               <canvas id="splitOverlayCanvas" class="hidden"></canvas>
               <!-- Split Handle Bar -->
@@ -573,6 +741,23 @@
               </div>
               <!-- Floating Interactive Brush Cursor -->
               <div id="brushCursor" class="brush-cursor hidden"></div>
+              <!-- Interactive Vector Object Overlay Layer -->
+              <div id="objectOverlayLayer" class="object-overlay-layer hidden">
+                <div id="objectSelectionBox" class="object-selection-box hidden">
+                  <div class="obj-handle obj-handle-tl" data-handle="tl"></div>
+                  <div class="obj-handle obj-handle-tc" data-handle="tc"></div>
+                  <div class="obj-handle obj-handle-tr" data-handle="tr"></div>
+                  <div class="obj-handle obj-handle-ml" data-handle="ml"></div>
+                  <div class="obj-handle obj-handle-mr" data-handle="mr"></div>
+                  <div class="obj-handle obj-handle-bl" data-handle="bl"></div>
+                  <div class="obj-handle obj-handle-bc" data-handle="bc"></div>
+                  <div class="obj-handle obj-handle-br" data-handle="br"></div>
+                  <div class="obj-rotate-stem"></div>
+                  <div class="obj-rotate-handle" data-handle="rotate" title="회전"></div>
+                </div>
+                <!-- Inline Text Editor (Textarea dynamically placed over canvas) -->
+                <textarea id="inlineTextEditor" class="inline-text-editor hidden" spellcheck="false"></textarea>
+              </div>
               <!-- Manual Crop Overlay Layer -->
               <div id="cropOverlayLayer" class="crop-overlay-layer hidden">
                 <div id="cropSelectionBox" class="crop-selection-box hidden">
@@ -615,6 +800,7 @@
   <script src="../i18n.js"></script>
   <script src="../lib/gif-encoder.js"></script>
   <script src="remover-engine.js"></script>
+  <script src="object-engine.js"></script>
   <script src="remover.js"></script>
 </body>
 </html>
