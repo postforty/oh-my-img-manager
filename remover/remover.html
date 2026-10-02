@@ -389,20 +389,20 @@
           </button>
         </section>
 
-        <!-- 7. 개체 및 텍스트 추가 (Object Studio) -->
+        <!-- 7. 개체 추가 (Object Studio) -->
         <section class="control-section object-tool-section" id="objectToolSection">
           <div class="section-header-row">
             <h2 class="section-title">
               <span class="step-num">7</span>
-              <span data-i18n="sectionObjectTitle">개체 & 텍스트 추가</span>
+              <span data-i18n="sectionObjectTitle">개체 추가</span>
             </h2>
-            <button id="btnToggleObjectPanel" class="btn btn-tiny btn-outline" data-i18n-title="btnToggleObjectTitle" title="도구 패널 토글">
-              <span id="textToggleObject" data-i18n="btnOpenObject">열기</span>
+            <button id="btnToggleObjectPanel" class="btn btn-tiny btn-outline active" data-i18n-title="btnToggleObjectTitle" title="도구 패널 접기/펼치기">
+              <span id="textToggleObject" data-i18n="btnCloseObject">접기</span>
             </button>
           </div>
 
-          <!-- Object Studio Controls Container -->
-          <div id="objectControlsPanel" class="object-controls-panel hidden">
+          <!-- Object Studio Controls Container (Open by default) -->
+          <div id="objectControlsPanel" class="object-controls-panel">
             <!-- Tool Selection Buttons -->
             <div class="obj-tool-grid">
               <button class="btn btn-obj-tool active" data-tool="select" title="개체 선택/이동 (V)">
@@ -447,53 +447,61 @@
             </div>
 
             <!-- Contextual Properties Inspector -->
+            <!-- Contextual Properties Inspector -->
             <div class="obj-inspector" id="objInspector">
               <!-- Colors & Fill Row -->
-              <div class="obj-prop-row">
-                <div class="obj-prop-col">
-                  <span class="input-mini-label" data-i18n="labelStrokeColor">외곽선</span>
-                  <label class="custom-color-label">
+              <div class="obj-colors-row">
+                <div class="obj-color-item" id="colObjStroke">
+                  <span class="obj-mini-label" id="labelStrokeText" data-i18n="labelStrokeColor">외곽선</span>
+                  <div class="obj-color-chip-wrap" title="색상 선택">
                     <input type="color" id="inputObjStrokeColor" value="#38bdf8" />
-                    <span class="color-chip" id="chipObjStrokeColor" style="background-color: #38bdf8"></span>
-                  </label>
+                    <span class="obj-color-preview-chip" id="chipObjStrokeColor" style="background-color: #38bdf8;"></span>
+                  </div>
                 </div>
-                <div class="obj-prop-col" id="colObjFill">
-                  <span class="input-mini-label" data-i18n="labelFillColor">채우기</span>
-                  <div class="fill-toggle-wrap">
-                    <input type="checkbox" id="checkObjFilled" />
-                    <label class="custom-color-label">
+                <div class="obj-color-item" id="colObjFill">
+                  <span class="obj-mini-label" data-i18n="labelFillColor">채우기</span>
+                  <div class="obj-fill-controls">
+                    <div class="obj-smart-chip-wrap is-none" id="wrapObjFillChip" data-i18n-title="tipFillColor" title="채우기 색상 선택 (클릭하여 켜기/변경)">
                       <input type="color" id="inputObjFillColor" value="#ffffff" />
-                      <span class="color-chip" id="chipObjFillColor" style="background-color: #ffffff"></span>
-                    </label>
+                      <div class="obj-chip-preview" id="chipObjFillColor" style="background-color: transparent;">
+                        <span class="chip-none-slash" id="iconFillNone"></span>
+                      </div>
+                    </div>
+                    <button type="button" class="btn-chip-clear hidden" id="btnObjFillClear" data-i18n-title="tipFillNone" title="채우기 없음 (투명)" aria-label="채우기 없음">
+                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
 
               <!-- Stroke Width Slider -->
-              <div class="slider-group" id="groupStrokeWidth">
-                <div class="slider-header">
-                  <label class="slider-label" for="rangeObjStrokeWidth" data-i18n="labelStrokeWidth">선 굵기</label>
+              <div class="slider-item" id="groupStrokeWidth">
+                <div class="slider-label">
+                  <span data-i18n="labelStrokeWidth">선 굵기</span>
                   <span class="slider-value" id="valObjStrokeWidth">4px</span>
                 </div>
-                <input type="range" id="rangeObjStrokeWidth" min="1" max="40" value="4" class="slider-range" />
+                <input type="range" id="rangeObjStrokeWidth" min="1" max="40" value="4" />
               </div>
 
               <!-- Opacity Slider -->
-              <div class="slider-group">
-                <div class="slider-header">
-                  <label class="slider-label" for="rangeObjOpacity" data-i18n="labelOpacity">불투명도</label>
+              <div class="slider-item" id="groupOpacity">
+                <div class="slider-label">
+                  <span data-i18n="labelOpacity">불투명도</span>
                   <span class="slider-value" id="valObjOpacity">100%</span>
                 </div>
-                <input type="range" id="rangeObjOpacity" min="10" max="100" value="100" class="slider-range" />
+                <input type="range" id="rangeObjOpacity" min="10" max="100" value="100" />
               </div>
 
               <!-- Border Radius Slider (Rect only) -->
-              <div class="slider-group" id="groupBorderRadius">
-                <div class="slider-header">
-                  <label class="slider-label" for="rangeObjRadius" data-i18n="labelBorderRadius">모서리 둥글기</label>
+              <div class="slider-item hidden" id="groupBorderRadius">
+                <div class="slider-label">
+                  <span data-i18n="labelBorderRadius">모서리 둥글기</span>
                   <span class="slider-value" id="valObjRadius">8px</span>
                 </div>
-                <input type="range" id="rangeObjRadius" min="0" max="80" value="8" class="slider-range" />
+                <input type="range" id="rangeObjRadius" min="0" max="80" value="8" />
               </div>
 
               <!-- Text Options Row (Text only) -->
@@ -504,10 +512,10 @@
                     <input type="number" id="inputObjFontSize" class="input-number" min="12" max="150" value="28" style="width: 70px" />
                   </div>
                   <div class="obj-prop-col">
-                    <span class="input-mini-label" data-i18n="labelTextStyle">스타일</span>
+                    <span class="input-mini-label" data-i18n="labelTextStyle">스타일 (중복 가능)</span>
                     <div class="btn-group-tiny">
-                      <button id="btnObjBold" class="btn btn-tiny active" title="굵게"><b>B</b></button>
-                      <button id="btnObjShadow" class="btn btn-tiny active" title="가독성 외곽선">S</button>
+                      <button id="btnObjBold" class="btn btn-tiny active" data-i18n-title="tipObjBold" title="굵게 (Bold) - 다중 선택 가능"><b>B</b></button>
+                      <button id="btnObjShadow" class="btn btn-tiny active btn-shadow-style" data-i18n-title="tipObjShadow" title="가독성 외곽선 그림자 (Shadow) - 다중 선택 가능"><span class="shadow-s-glyph">S</span></button>
                     </div>
                   </div>
                 </div>
@@ -543,15 +551,6 @@
                 <span data-i18n="btnDelete">삭제</span>
               </button>
             </div>
-
-            <!-- Glue Objects Button -->
-            <button id="btnGlueObjects" class="btn btn-primary btn-block btn-glue" disabled>
-              <svg class="btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-              </svg>
-              <span data-i18n="btnGlueObjects">개체 접착 (캔버스 병합)</span>
-            </button>
-            <p class="glue-hint" data-i18n="glueHintText">💡 접착하지 않아도 저장 시 자동 합성됩니다.</p>
           </div>
         </section>
 

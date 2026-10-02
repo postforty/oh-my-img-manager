@@ -170,13 +170,20 @@ const textToggleObject = document.getElementById("textToggleObject");
 const objectControlsPanel = document.getElementById("objectControlsPanel");
 const objToolButtons = document.querySelectorAll(".btn-obj-tool");
 const objInspector = document.getElementById("objInspector");
+const colObjStroke = document.getElementById("colObjStroke");
+const labelStrokeText = document.getElementById("labelStrokeText");
 const inputObjStrokeColor = document.getElementById("inputObjStrokeColor");
 const chipObjStrokeColor = document.getElementById("chipObjStrokeColor");
-const checkObjFilled = document.getElementById("checkObjFilled");
+const colObjFill = document.getElementById("colObjFill");
+const wrapObjFillChip = document.getElementById("wrapObjFillChip");
 const inputObjFillColor = document.getElementById("inputObjFillColor");
 const chipObjFillColor = document.getElementById("chipObjFillColor");
+const iconFillNone = document.getElementById("iconFillNone");
+const btnObjFillClear = document.getElementById("btnObjFillClear");
+const groupStrokeWidth = document.getElementById("groupStrokeWidth");
 const rangeObjStrokeWidth = document.getElementById("rangeObjStrokeWidth");
 const valObjStrokeWidth = document.getElementById("valObjStrokeWidth");
+const groupOpacity = document.getElementById("groupOpacity");
 const rangeObjOpacity = document.getElementById("rangeObjOpacity");
 const valObjOpacity = document.getElementById("valObjOpacity");
 const groupBorderRadius = document.getElementById("groupBorderRadius");
@@ -190,7 +197,6 @@ const btnObjDuplicate = document.getElementById("btnObjDuplicate");
 const btnObjBringForward = document.getElementById("btnObjBringForward");
 const btnObjSendBackward = document.getElementById("btnObjSendBackward");
 const btnObjDelete = document.getElementById("btnObjDelete");
-const btnGlueObjects = document.getElementById("btnGlueObjects");
 
 // Action Elements
 const btnUndo = document.getElementById("btnUndo");
@@ -556,6 +562,7 @@ async function loadImageFile(file, customName) {
 
     // Reset History & Crop State
     setCropMode(false);
+    setObjectStudioMode(true);
     resetAiProgress();
     historyManager.clear();
     historyManager.pushState(mainCanvas, originalCanvas);
@@ -625,7 +632,6 @@ function enableControls(enabled) {
     inputResizeWidth,
     inputResizeHeight,
     btnToggleObjectPanel,
-    btnGlueObjects,
   ].forEach((btn) => {
     if (btn) btn.disabled = !enabled;
   });
@@ -1429,26 +1435,59 @@ function setupObjectTools() {
     });
   }
 
-  // Fill Toggle & Color
-  if (checkObjFilled) {
-    checkObjFilled.addEventListener("change", (e) => {
-      const isFilled = e.target.checked;
-      objectEngine.defaultStyle.isFilled = isFilled;
-      const cur = objectEngine.getSelectedItem();
-      if (cur) {
-        objectEngine.updateItem(cur.id, { isFilled });
+  // Smart Fill Chip & Color (Figma Style)
+  function updateFillChipUI(isFilled, color) {
+    if (!wrapObjFillChip) return;
+    wrapObjFillChip.classList.toggle("is-none", !isFilled);
+    if (chipObjFillColor) {
+      chipObjFillColor.style.backgroundColor = isFilled ? (color || objectEngine.defaultStyle.fillColor) : "transparent";
+    }
+    if (iconFillNone) {
+      iconFillNone.classList.toggle("hidden", isFilled);
+    }
+    if (btnObjFillClear) {
+      btnObjFillClear.classList.toggle("hidden", !isFilled);
+    }
+  }
+
+  if (wrapObjFillChip) {
+    wrapObjFillChip.addEventListener("click", () => {
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      const wasFilled = cur ? cur.isFilled : objectEngine.defaultStyle.isFilled;
+      if (!wasFilled) {
+        const nextColor = (cur && cur.fillColor) || objectEngine.defaultStyle.fillColor || "#ffffff";
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isFilled: true, fillColor: nextColor });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isFilled = true;
+        }
+        updateFillChipUI(true, nextColor);
       }
+    });
+  }
+
+  if (btnObjFillClear) {
+    btnObjFillClear.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur) {
+        objectEngine.updateItem(cur.id, { isFilled: false });
+      } else if (objectEngine) {
+        objectEngine.defaultStyle.isFilled = false;
+      }
+      updateFillChipUI(false);
     });
   }
 
   if (inputObjFillColor) {
     inputObjFillColor.addEventListener("input", (e) => {
       const color = e.target.value;
-      if (chipObjFillColor) chipObjFillColor.style.backgroundColor = color;
       objectEngine.defaultStyle.fillColor = color;
+      objectEngine.defaultStyle.isFilled = true;
+      updateFillChipUI(true, color);
       const cur = objectEngine.getSelectedItem();
       if (cur) {
-        objectEngine.updateItem(cur.id, { fillColor: color });
+        objectEngine.updateItem(cur.id, { isFilled: true, fillColor: color });
       }
     });
   }
@@ -1566,11 +1605,10 @@ function setupObjectTools() {
     btnObjDelete.addEventListener("click", deleteSelectedObject);
   }
 
-  if (btnGlueObjects) {
-    btnGlueObjects.addEventListener("click", glueObjectsToMainCanvas);
-  }
-
   setupInlineTextEditor();
+
+  // Open Object Studio panel by default for intuitive UX
+  setObjectStudioMode(true);
 }
 
 function setObjectStudioMode(active) {
@@ -1580,8 +1618,8 @@ function setObjectStudioMode(active) {
   }
   if (textToggleObject) {
     textToggleObject.textContent = active
-      ? (typeof I18N !== "undefined" ? I18N.t("btnCloseObject") : "닫기")
-      : (typeof I18N !== "undefined" ? I18N.t("btnOpenObject") : "열기");
+      ? (typeof I18N !== "undefined" ? I18N.t("btnCloseObject") : "접기")
+      : (typeof I18N !== "undefined" ? I18N.t("btnOpenObject") : "펼치기");
   }
   if (btnToggleObjectPanel) {
     btnToggleObjectPanel.classList.toggle("active", active);
@@ -1613,25 +1651,33 @@ function setObjectActiveTool(toolName) {
     });
   }
 
-  // Update contextual inspector visibility
+  const isText = toolName === "text";
+  const isLineOrArrow = toolName === "line" || toolName === "arrow";
+  const isRect = toolName === "rect";
+
+  if (labelStrokeText) {
+    labelStrokeText.textContent = isText
+      ? (typeof I18N !== "undefined" ? I18N.t("labelTextColor") : "글자 색상")
+      : (typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선");
+  }
+
+  if (colObjFill) {
+    colObjFill.classList.toggle("hidden", isText || isLineOrArrow);
+  }
   if (groupBorderRadius) {
-    groupBorderRadius.classList.toggle("hidden", toolName !== "rect" && toolName !== "select");
+    groupBorderRadius.classList.toggle("hidden", !isRect && toolName !== "select");
   }
   if (groupTextOptions) {
-    groupTextOptions.classList.toggle("hidden", toolName !== "text" && toolName !== "select");
+    groupTextOptions.classList.toggle("hidden", !isText && toolName !== "select");
   }
   if (groupStrokeWidth) {
-    groupStrokeWidth.classList.toggle("hidden", toolName === "text");
+    groupStrokeWidth.classList.toggle("hidden", isText);
   }
 }
 
 function updateObjectSelectionUI() {
   if (!objectEngine) return;
   const item = objectEngine.getSelectedItem();
-
-  if (btnGlueObjects) {
-    btnGlueObjects.disabled = !objectEngine.hasItems();
-  }
 
   const hasSelection = !!item;
   if (btnObjDuplicate) btnObjDuplicate.disabled = !hasSelection;
@@ -1641,6 +1687,9 @@ function updateObjectSelectionUI() {
 
   if (!item || !objectSelectionBox) {
     if (objectSelectionBox) objectSelectionBox.classList.add("hidden");
+    if (typeof updateFillChipUI === "function") {
+      updateFillChipUI(objectEngine.defaultStyle.isFilled, objectEngine.defaultStyle.fillColor);
+    }
     return;
   }
 
@@ -1664,17 +1713,33 @@ function updateObjectSelectionUI() {
   objectSelectionBox.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : "none";
   objectSelectionBox.classList.remove("hidden");
 
+  // Contextual visibility based on selected item type
+  const isText = item.type === "text";
+  const isLineOrArrow = item.type === "line" || item.type === "arrow";
+  const isRect = item.type === "rect";
+
+  if (labelStrokeText) {
+    labelStrokeText.textContent = isText
+      ? (typeof I18N !== "undefined" ? I18N.t("labelTextColor") : "글자 색상")
+      : (typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선");
+  }
+
+  if (colObjFill) {
+    colObjFill.classList.toggle("hidden", isText || isLineOrArrow);
+  }
+
   // Sync contextual inspector values
   if (inputObjStrokeColor && item.strokeColor) {
     inputObjStrokeColor.value = item.strokeColor;
     if (chipObjStrokeColor) chipObjStrokeColor.style.backgroundColor = item.strokeColor;
   }
-  if (checkObjFilled && typeof item.isFilled === "boolean") {
-    checkObjFilled.checked = item.isFilled;
+  const isFilled = typeof item.isFilled === "boolean" ? item.isFilled : false;
+  const fillColor = item.fillColor || objectEngine.defaultStyle.fillColor;
+  if (inputObjFillColor && fillColor) {
+    inputObjFillColor.value = fillColor;
   }
-  if (inputObjFillColor && item.fillColor) {
-    inputObjFillColor.value = item.fillColor;
-    if (chipObjFillColor) chipObjFillColor.style.backgroundColor = item.fillColor;
+  if (typeof updateFillChipUI === "function") {
+    updateFillChipUI(isFilled, fillColor);
   }
   if (rangeObjStrokeWidth && typeof item.strokeWidth === "number") {
     rangeObjStrokeWidth.value = item.strokeWidth;
@@ -1686,14 +1751,14 @@ function updateObjectSelectionUI() {
     if (valObjOpacity) valObjOpacity.textContent = `${pct}%`;
   }
   if (rangeObjRadius && typeof item.borderRadius === "number" && groupBorderRadius) {
-    groupBorderRadius.classList.remove("hidden");
+    groupBorderRadius.classList.toggle("hidden", !isRect);
     rangeObjRadius.value = item.borderRadius;
     if (valObjRadius) valObjRadius.textContent = `${item.borderRadius}px`;
-  } else if (groupBorderRadius && item.type !== "rect") {
+  } else if (groupBorderRadius) {
     groupBorderRadius.classList.add("hidden");
   }
 
-  if (item.type === "text" && groupTextOptions) {
+  if (isText && groupTextOptions) {
     groupTextOptions.classList.remove("hidden");
     if (inputObjFontSize && item.fontSize) inputObjFontSize.value = item.fontSize;
     if (btnObjBold) btnObjBold.classList.toggle("active", !!item.isBold);
@@ -2002,17 +2067,6 @@ function glueObjectsToMainCanvas() {
 
   objectEngine.clearAll();
   updateObjectSelectionUI();
-
-  historyManager.pushState(mainCanvas, originalCanvas);
-  updateUndoRedoButtons();
-  updateCanvasDisplay();
-
-  showToast(
-    typeof I18N !== "undefined"
-      ? I18N.t("toastObjectsGlued")
-      : "모든 개체가 캔버스에 영구 접착되었습니다! (Ctrl+Z로 되돌리기 가능)",
-    "success"
-  );
 }
 
 function getCompositeExportCanvas(customBgFill) {
@@ -2718,13 +2772,6 @@ function setupShortcuts() {
     if (e.key === "Escape" && state.object.active && objectEngine && objectEngine.selectedId) {
       objectEngine.clearSelection();
       updateObjectSelectionUI();
-      return;
-    }
-
-    // Enter: Glue objects if object studio open and has items
-    if (e.key === "Enter" && state.object.active && objectEngine && objectEngine.hasItems() && !state.object.isEditingText) {
-      e.preventDefault();
-      glueObjectsToMainCanvas();
       return;
     }
 
