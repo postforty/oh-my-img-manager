@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Oh My Image Manager
 
-> Last Updated: 2026-09-23
+> Last Updated: 2026-10-04
 
 ## Store Listing
 
@@ -46,19 +46,29 @@ Oh My Image Manager는 대량의 이미지를 초고속으로 일괄 크롭/압�
 - 🔀 Split 비교 뷰: 원본과 누끼 결과물을 슬라이더로 좌우 비교하며 검토할 수 있습니다.
 - 🎨 배경 채우기: 투명 배경 외에도 화이트, 블랙, 커스텀 단색 배경을 손쉽게 채워 넣을 수 있습니다.
 
-2️⃣ 대용량 이미지 일괄 크롭 & ZIP 일괄 다운로드
+2️⃣ 벡터 개체 추가 & 텍스트 디자인 스튜디오
+- 📐 도형 & 정밀 화살표: 직사각형(모서리 둥글기 조절), 원형, 직선, 날렵하고 뾰족한 쉐브론 화살표(Sharp Chevron Arrow)를 캔버스에 자유롭게 배치하고 회전/크기 조절합니다.
+- ✍️ 프로페셔널 3단 텍스트 인스펙터:
+  - 글 (채우기): 폰트 패밀리, 크기, 볼드/이탤릭, 정렬(좌/중/우), 글자 색상, 불투명도 조절
+  - 외곽선: 독립 체크박스 On/Off, 외곽선 색상 및 1~24px 선 굵기 조절 (글자 안쪽을 파먹지 않는 아우터 스트로크 기법)
+  - 그림자: 입체감 있는 드롭 섀도우 토글, 그림자 색상, 흐림(Blur), 거리(Offset) 설정
+- 💻 내 PC 폰트 불러오기: 윈도우 기본 한글(맑은 고딕, 굴림, 돋움 등)/영문 폰트 기본 탑재 및 `queryLocalFonts`를 통한 시스템 설치 폰트 원클릭 스캔 지원
+- ↩️ 개체 전용 실행 취소/다시 실행: 개체 삽입, 변형, 삭제, 복제, 순서 변경 시 `Ctrl+Z` / `Ctrl+Y` (Mac: `Cmd+Z`, `Cmd+Shift+Z`) 완벽 지원
+- 📑 레이어 관리: 선택 개체 복제(Ctrl+D), 삭제(Delete/Backspace), 앞으로/뒤로 순서 변경을 2×2 그리드 버튼으로 손쉽게 조작
+
+3️⃣ 대용량 이미지 일괄 크롭 & ZIP 일괄 다운로드
 - 📁 수십~수백 장의 이미지를 드래그 앤 드롭으로 한 번에 불러옵니다.
 - ⚡ 지정한 비율(상/하/좌/우 정밀 조정 및 프리셋)로 모든 이미지를 일괄 크롭합니다.
 - 📦 처리된 모든 결과물을 단 몇 초 만에 ZIP 압축 파일로 즉시 다운로드합니다.
 - 👁️ 실시간 듀얼 프리뷰: 자를 영역 가이드와 실제 잘려나간 결과물을 탭으로 즉시 확인 가능합니다.
 
-3️⃣ 원클릭 현재 웹 탭 캡처 & 크롭
+4️⃣ 원클릭 현재 웹 탭 캡처 & 크롭
 - 브라우징 중 팝업 메뉴에서 클릭 한 번으로 현재 탭 화면을 캡처하고, 설정한 비율로 자동 크롭하여 저장합니다.
 
-4️⃣ 다양한 포맷 & 무손실 품질 설정
-- PNG (투명 알파 채널 지원), JPG (품질 조절 가능), WebP(초경량 최신 포맷) 지원
+5️⃣ 다양한 포맷 & 무손실 품질 설정
+- PNG (투명 알파 채널 지원), JPG (품질 조절 가능), WebP(초경량 최신 포맷), GIF(256색 및 1비트 투명도) 지원
 
-5️⃣ 다국어(한국어/영어) & 다크/라이트 모드 지원
+6️⃣ 다국어(한국어/영어) & 다크/라이트 모드 지원
 - 한국어 및 영어를 기본 지원하며, 사용자 취향에 맞춘 다크/라이트 테마를 제공합니다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -104,19 +114,29 @@ A powerful, privacy-first Chrome Extension that lets you batch crop hundreds of 
 - 🔀 Split View: Compare original and cutout images side-by-side with an interactive slider.
 - 🎨 Background Fill: Easily replace transparent backgrounds with solid white, black, or custom colors.
 
-2️⃣ High-Volume Batch Crop & ZIP Export
+2️⃣ Vector Object Studio & Professional Text Design
+- 📐 Shapes & Sharp Arrows: Add customizable rectangles (with rounded corners), circles/ellipses, straight lines, and razor-sharp chevron arrows with drag-and-drop scaling and freeform rotation.
+- ✍️ Professional 3-Tier Text Inspector:
+  - Text (Fill): Font family selector, font size, bold, italic, alignment, text color, and opacity slider.
+  - Outline (Stroke): Independent toggle checkbox, outline color, and 1–24px stroke width with crisp outer-stroke rendering that preserves internal letterforms.
+  - Drop Shadow: Toggleable drop shadow with customizable color, blur, and distance offsets.
+- 💻 Local Font Library: Built-in Windows Korean/English system fonts and one-click scanning of all installed fonts on your PC via `queryLocalFonts`.
+- ↩️ Dedicated Vector History: Lossless Undo/Redo stack supporting `Ctrl+Z` / `Ctrl+Y` (`Cmd+Z`, `Cmd+Shift+Z` on macOS) for object placement, transformation, deletion, duplication, and ordering.
+- 📑 Layer Management: Duplicate (Ctrl+D), delete (Delete/Backspace), and bring forward/send backward controls organized in a sleek 2×2 button grid.
+
+3️⃣ High-Volume Batch Crop & ZIP Export
 - 📁 Drag and drop dozens or hundreds of images at once.
 - ⚡ Crop all images consistently using precise presets and margin controls.
 - 📦 Export all cropped images into a single ZIP archive in seconds.
 - 👁️ Real-time Dual Preview: Visual bounds overlay and final output rendering.
 
-3️⃣ One-Click Web Tab Capture & Crop
+4️⃣ One-Click Web Tab Capture & Crop
 - Instantly capture your current browser tab, apply preset crop bounds, and download.
 
-4️⃣ Multi-Format Support & Custom Quality
-- Export to PNG (transparent), JPG (custom quality), and modern WebP.
+5️⃣ Multi-Format Support & Custom Quality
+- Export to PNG (transparent), JPG (custom quality), WebP (modern lightweight), and GIF (256-color indexed with 1-bit transparency).
 
-5️⃣ Multi-Language (Korean/English) & Dark/Light Mode
+6️⃣ Multi-Language (Korean/English) & Dark/Light Mode
 - Built-in multi-language support (Auto / Korean / English) with sleek Dark & Light themes.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -186,7 +206,8 @@ https://github.com/postforty/oh-my-img-manager/blob/main/PRIVACY.md
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.4.0 | 2026-09-26 | Multi-format save studio (PNG, WebP, JPEG, GIF) with embedded client-side GIF89a encoder and real-time transparency notice | Ready for Submission |
+| 1.5.0 | 2026-10-04 | Vector Object Studio (Rect, Circle, Arrow, Line) & 3-Tier Text Inspector with local font scanner and full Ctrl+Z vector history | Ready for Submission |
+| 1.4.0 | 2026-09-26 | Multi-format save studio (PNG, WebP, JPEG, GIF) with embedded client-side GIF89a encoder and real-time transparency notice | Completed |
 | 1.3.0 | 2026-09-23 | Initial store submission & review fix for keyword spam policy | In Review / Pending Resubmission |
 
 ---

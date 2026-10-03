@@ -70,6 +70,7 @@ const state = {
     isMoving: false,
     isResizing: false,
     isRotating: false,
+    hasModified: false,
     resizeHandle: null,
     moveStartPos: { x: 0, y: 0 },
     initialItem: null,
@@ -170,10 +171,14 @@ const textToggleObject = document.getElementById("textToggleObject");
 const objectControlsPanel = document.getElementById("objectControlsPanel");
 const objToolButtons = document.querySelectorAll(".btn-obj-tool");
 const objInspector = document.getElementById("objInspector");
+const objShapeControls = document.getElementById("objShapeControls");
 const colObjStroke = document.getElementById("colObjStroke");
 const labelStrokeText = document.getElementById("labelStrokeText");
+const wrapObjStrokeChip = document.getElementById("wrapObjStrokeChip");
 const inputObjStrokeColor = document.getElementById("inputObjStrokeColor");
 const chipObjStrokeColor = document.getElementById("chipObjStrokeColor");
+const iconStrokeNone = document.getElementById("iconStrokeNone");
+const btnObjStrokeClear = document.getElementById("btnObjStrokeClear");
 const colObjFill = document.getElementById("colObjFill");
 const wrapObjFillChip = document.getElementById("wrapObjFillChip");
 const inputObjFillColor = document.getElementById("inputObjFillColor");
@@ -189,10 +194,42 @@ const valObjOpacity = document.getElementById("valObjOpacity");
 const groupBorderRadius = document.getElementById("groupBorderRadius");
 const rangeObjRadius = document.getElementById("rangeObjRadius");
 const valObjRadius = document.getElementById("valObjRadius");
-const groupTextOptions = document.getElementById("groupTextOptions");
+
+// 3-Tier Text Inspector Elements
+const objTextInspector = document.getElementById("objTextInspector");
+const chkTextFill = document.getElementById("chkTextFill");
+const selectTextFontFamily = document.getElementById("selectTextFontFamily");
+const btnScanLocalFonts = document.getElementById("btnScanLocalFonts");
 const inputObjFontSize = document.getElementById("inputObjFontSize");
+const wrapTextFillChip = document.getElementById("wrapTextFillChip");
+const inputTextFillColor = document.getElementById("inputTextFillColor");
+const chipTextFillColor = document.getElementById("chipTextFillColor");
 const btnObjBold = document.getElementById("btnObjBold");
-const btnObjShadow = document.getElementById("btnObjShadow");
+const btnTextItalic = document.getElementById("btnTextItalic");
+const btnTextAlignLeft = document.getElementById("btnTextAlignLeft");
+const btnTextAlignCenter = document.getElementById("btnTextAlignCenter");
+const btnTextAlignRight = document.getElementById("btnTextAlignRight");
+const rangeTextOpacity = document.getElementById("rangeTextOpacity");
+const valTextOpacity = document.getElementById("valTextOpacity");
+
+const chkTextStroke = document.getElementById("chkTextStroke");
+const wrapTextStrokeChip = document.getElementById("wrapTextStrokeChip");
+const inputTextStrokeColor = document.getElementById("inputTextStrokeColor");
+const chipTextStrokeColor = document.getElementById("chipTextStrokeColor");
+const bodyTextStroke = document.getElementById("bodyTextStroke");
+const rangeTextStrokeWidth = document.getElementById("rangeTextStrokeWidth");
+const valTextStrokeWidth = document.getElementById("valTextStrokeWidth");
+
+const chkTextShadow = document.getElementById("chkTextShadow");
+const wrapTextShadowChip = document.getElementById("wrapTextShadowChip");
+const inputTextShadowColor = document.getElementById("inputTextShadowColor");
+const chipTextShadowColor = document.getElementById("chipTextShadowColor");
+const bodyTextShadow = document.getElementById("bodyTextShadow");
+const rangeTextShadowBlur = document.getElementById("rangeTextShadowBlur");
+const valTextShadowBlur = document.getElementById("valTextShadowBlur");
+const rangeTextShadowOffset = document.getElementById("rangeTextShadowOffset");
+const valTextShadowOffset = document.getElementById("valTextShadowOffset");
+
 const btnObjDuplicate = document.getElementById("btnObjDuplicate");
 const btnObjBringForward = document.getElementById("btnObjBringForward");
 const btnObjSendBackward = document.getElementById("btnObjSendBackward");
@@ -548,6 +585,7 @@ async function loadImageFile(file, customName) {
 
     if (objectEngine) {
       objectEngine.clearAll();
+      objectEngine.clearHistory();
       objectEngine.resize(width, height);
     }
 
@@ -1422,15 +1460,79 @@ function setupObjectTools() {
     });
   }
 
-  // Stroke Color Input
+  // Smart Stroke Chip & Color (Figma Style)
+  function updateStrokeChipUI(isStroked, color) {
+    if (!wrapObjStrokeChip) return;
+    wrapObjStrokeChip.classList.toggle("is-none", !isStroked);
+    if (chipObjStrokeColor) {
+      chipObjStrokeColor.style.backgroundColor = isStroked ? (color || objectEngine.defaultStyle.strokeColor) : "transparent";
+    }
+    if (iconStrokeNone) {
+      iconStrokeNone.classList.toggle("hidden", isStroked);
+    }
+    if (btnObjStrokeClear) {
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      const isLineOrArrow = cur ? (cur.type === "line" || cur.type === "arrow") : (state.object.tool === "line" || state.object.tool === "arrow");
+      btnObjStrokeClear.classList.toggle("hidden", !isStroked || isLineOrArrow);
+    }
+    if (groupStrokeWidth) {
+      groupStrokeWidth.style.opacity = isStroked ? "1" : "0.45";
+      if (rangeObjStrokeWidth) rangeObjStrokeWidth.disabled = !isStroked;
+    }
+  }
+
+  if (wrapObjStrokeChip) {
+    wrapObjStrokeChip.addEventListener("click", () => {
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      const wasStroked = cur ? (cur.isStroked !== false) : (objectEngine.defaultStyle.isStroked !== false);
+      if (!wasStroked) {
+        const nextColor = (cur && cur.strokeColor) || objectEngine.defaultStyle.strokeColor || "#38bdf8";
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isStroked: true, strokeColor: nextColor });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isStroked = true;
+        }
+        updateStrokeChipUI(true, nextColor);
+      }
+    });
+  }
+
+  if (btnObjStrokeClear) {
+    btnObjStrokeClear.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      // 외곽선 끄기 시: 만약 채우기가 꺼져 있다면 도형이 투명해지지 않도록 채우기를 자동으로 켬
+      const currentFill = cur ? cur.isFilled : objectEngine.defaultStyle.isFilled;
+      if (!currentFill) {
+        const fillColor = (cur && cur.fillColor) || objectEngine.defaultStyle.fillColor || "#38bdf8";
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isStroked: false, isFilled: true, fillColor });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isStroked = false;
+          objectEngine.defaultStyle.isFilled = true;
+          objectEngine.defaultStyle.fillColor = fillColor;
+        }
+        updateFillChipUI(true, fillColor);
+      } else {
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isStroked: false });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isStroked = false;
+        }
+      }
+      updateStrokeChipUI(false);
+    });
+  }
+
   if (inputObjStrokeColor) {
     inputObjStrokeColor.addEventListener("input", (e) => {
       const color = e.target.value;
-      if (chipObjStrokeColor) chipObjStrokeColor.style.backgroundColor = color;
       objectEngine.defaultStyle.strokeColor = color;
+      objectEngine.defaultStyle.isStroked = true;
+      updateStrokeChipUI(true, color);
       const cur = objectEngine.getSelectedItem();
       if (cur) {
-        objectEngine.updateItem(cur.id, { strokeColor: color });
+        objectEngine.updateItem(cur.id, { strokeColor: color, isStroked: true });
       }
     });
   }
@@ -1470,10 +1572,24 @@ function setupObjectTools() {
     btnObjFillClear.addEventListener("click", (e) => {
       e.stopPropagation();
       const cur = objectEngine ? objectEngine.getSelectedItem() : null;
-      if (cur) {
-        objectEngine.updateItem(cur.id, { isFilled: false });
-      } else if (objectEngine) {
-        objectEngine.defaultStyle.isFilled = false;
+      // 채우기 끄기 시: 만약 외곽선이 꺼져 있다면 도형이 투명해지지 않도록 외곽선을 자동으로 켬
+      const currentStroke = cur ? (cur.isStroked !== false) : (objectEngine.defaultStyle.isStroked !== false);
+      if (!currentStroke) {
+        const strokeColor = (cur && cur.strokeColor) || objectEngine.defaultStyle.strokeColor || "#38bdf8";
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isFilled: false, isStroked: true, strokeColor });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isFilled = false;
+          objectEngine.defaultStyle.isStroked = true;
+          objectEngine.defaultStyle.strokeColor = strokeColor;
+        }
+        updateStrokeChipUI(true, strokeColor);
+      } else {
+        if (cur) {
+          objectEngine.updateItem(cur.id, { isFilled: false });
+        } else if (objectEngine) {
+          objectEngine.defaultStyle.isFilled = false;
+        }
       }
       updateFillChipUI(false);
     });
@@ -1498,9 +1614,11 @@ function setupObjectTools() {
       const val = parseInt(e.target.value, 10);
       if (valObjStrokeWidth) valObjStrokeWidth.textContent = `${val}px`;
       objectEngine.defaultStyle.strokeWidth = val;
+      objectEngine.defaultStyle.isStroked = true;
+      updateStrokeChipUI(true, objectEngine.defaultStyle.strokeColor);
       const cur = objectEngine.getSelectedItem();
       if (cur) {
-        objectEngine.updateItem(cur.id, { strokeWidth: val });
+        objectEngine.updateItem(cur.id, { strokeWidth: val, isStroked: true });
         updateObjectSelectionUI();
       }
     });
@@ -1533,44 +1651,388 @@ function setupObjectTools() {
     });
   }
 
-  // Font Size
+  // 1. Text Font Family & Local Font Access
+  const addCustomFontToSelect = (fontFamilyName) => {
+    if (!selectTextFontFamily || !fontFamilyName) return;
+    const cleanName = fontFamilyName.replace(/['"]/g, "").trim();
+    if (!cleanName) return;
+    const fontValue = `'${cleanName}', sans-serif`;
+
+    let foundIndex = -1;
+    for (let i = 0; i < selectTextFontFamily.options.length; i++) {
+      if (selectTextFontFamily.options[i].value === fontValue || selectTextFontFamily.options[i].textContent === cleanName) {
+        foundIndex = i;
+        break;
+      }
+    }
+
+    if (foundIndex >= 0) {
+      selectTextFontFamily.selectedIndex = foundIndex;
+    } else {
+      let customGroup = document.getElementById("optgroupCustomFonts");
+      if (!customGroup) {
+        customGroup = document.createElement("optgroup");
+        customGroup.id = "optgroupCustomFonts";
+        customGroup.label = typeof I18N !== "undefined" ? "사용자 지정 폰트" : "사용자 지정 폰트";
+        selectTextFontFamily.appendChild(customGroup);
+      }
+      const opt = document.createElement("option");
+      opt.value = fontValue;
+      opt.textContent = cleanName;
+      opt.selected = true;
+      customGroup.appendChild(opt);
+    }
+
+    if (objectEngine) objectEngine.defaultStyle.fontFamily = fontValue;
+    const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+    if (cur && cur.type === "text") {
+      const m = objectEngine.measureText(cur.text, cur.fontSize, cur.isBold, fontValue, cur.isItalic);
+      objectEngine.updateItem(cur.id, { fontFamily: fontValue, width: m.width, height: m.height });
+      updateObjectSelectionUI();
+    }
+  };
+
+  const scanAndPopulateLocalFonts = async () => {
+    if (!("queryLocalFonts" in window)) {
+      const input = prompt(
+        "이 브라우저는 로컬 폰트 자동 스캔을 지원하지 않습니다.\n\n사용하고 싶은 윈도우 폰트 이름(예: 맑은 고딕, 나눔손글씨, Gmarket Sans, Arial)을 직접 입력해 주세요:"
+      );
+      if (input && input.trim()) {
+        addCustomFontToSelect(input.trim());
+      }
+      return;
+    }
+
+    try {
+      const fonts = await window.queryLocalFonts();
+      if (fonts && fonts.length > 0) {
+        const uniqueFamilies = Array.from(new Set(fonts.map((f) => f.family))).sort((a, b) =>
+          a.localeCompare(b, "ko")
+        );
+
+        let localGroup = document.getElementById("optgroupLocalFonts");
+        if (!localGroup) {
+          localGroup = document.createElement("optgroup");
+          localGroup.id = "optgroupLocalFonts";
+          // Insert after the action options (at index 2)
+          selectTextFontFamily.insertBefore(localGroup, selectTextFontFamily.children[2] || null);
+        }
+        localGroup.label = `내 PC 설치 폰트 (${uniqueFamilies.length}개)`;
+        localGroup.innerHTML = "";
+
+        uniqueFamilies.forEach((family) => {
+          const opt = document.createElement("option");
+          opt.value = `'${family}', sans-serif`;
+          opt.textContent = family;
+          localGroup.appendChild(opt);
+        });
+
+        alert(`내 PC(Windows)에 설치된 ${uniqueFamilies.length}개의 폰트를 모두 불러왔습니다!\n목록에서 원하는 폰트를 선택해 보세요.`);
+      }
+    } catch (err) {
+      console.warn("로컬 폰트 권한 거부 또는 취소:", err);
+      const input = prompt(
+        "폰트 스캔이 취소되었습니다.\n사용하고 싶은 윈도우 폰트 이름을 직접 입력해 주세요:"
+      );
+      if (input && input.trim()) {
+        addCustomFontToSelect(input.trim());
+      }
+    }
+  };
+
+  if (selectTextFontFamily) {
+    selectTextFontFamily.addEventListener("change", (e) => {
+      const val = e.target.value;
+      if (val === "__SCAN_LOCAL__") {
+        selectTextFontFamily.value = objectEngine?.defaultStyle.fontFamily || "'Malgun Gothic', '맑은 고딕', sans-serif";
+        scanAndPopulateLocalFonts();
+        return;
+      }
+      if (val === "__CUSTOM_INPUT__") {
+        selectTextFontFamily.value = objectEngine?.defaultStyle.fontFamily || "'Malgun Gothic', '맑은 고딕', sans-serif";
+        const input = prompt("사용할 폰트 이름을 입력해 주세요 (예: 맑은 고딕, 바탕, 나눔스퀘어, 배달의민족 도현):");
+        if (input && input.trim()) {
+          addCustomFontToSelect(input.trim());
+        }
+        return;
+      }
+
+      if (objectEngine) objectEngine.defaultStyle.fontFamily = val;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        const m = objectEngine.measureText(cur.text, cur.fontSize, cur.isBold, val, cur.isItalic);
+        objectEngine.updateItem(cur.id, { fontFamily: val, width: m.width, height: m.height });
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  if (btnScanLocalFonts) {
+    btnScanLocalFonts.addEventListener("click", scanAndPopulateLocalFonts);
+  }
+
+  // 2. Text Font Size
   if (inputObjFontSize) {
     inputObjFontSize.addEventListener("input", (e) => {
       const val = parseInt(e.target.value, 10);
       if (isNaN(val) || val < 10) return;
-      objectEngine.defaultStyle.fontSize = val;
-      const cur = objectEngine.getSelectedItem();
+      if (objectEngine) objectEngine.defaultStyle.fontSize = val;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
       if (cur && cur.type === "text") {
-        const m = objectEngine.measureText(cur.text, val, cur.isBold, cur.fontFamily);
+        const m = objectEngine.measureText(cur.text, val, cur.isBold, cur.fontFamily, cur.isItalic);
         objectEngine.updateItem(cur.id, { fontSize: val, width: m.width, height: m.height });
         updateObjectSelectionUI();
       }
     });
   }
 
-  // Bold & Shadow Buttons
+  // 2-B. Text Fill Toggle (Checkbox)
+  if (chkTextFill) {
+    chkTextFill.addEventListener("change", (e) => {
+      const isFilled = e.target.checked;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+
+      // Prevent completely transparent text
+      if (!isFilled) {
+        const isStroked = chkTextStroke ? chkTextStroke.checked : false;
+        if (!isStroked) {
+          if (chkTextStroke) chkTextStroke.checked = true;
+          if (bodyTextStroke) bodyTextStroke.classList.remove("is-disabled");
+          if (wrapTextStrokeChip) wrapTextStrokeChip.classList.remove("is-none");
+          if (objectEngine) objectEngine.defaultStyle.isStroked = true;
+          if (cur && cur.type === "text") cur.isStroked = true;
+        }
+      }
+
+      if (wrapTextFillChip) wrapTextFillChip.classList.toggle("is-none", !isFilled);
+      if (objectEngine) objectEngine.defaultStyle.isFilled = isFilled;
+      const curItem = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (curItem && curItem.type === "text") {
+        objectEngine.updateItem(curItem.id, { isFilled });
+        objectEngine.pushState();
+        updateUndoRedoButtons();
+      }
+    });
+  }
+
+  // 3. Text Fill Color
+  if (inputTextFillColor) {
+    inputTextFillColor.addEventListener("input", (e) => {
+      const color = e.target.value;
+      if (chipTextFillColor) chipTextFillColor.style.backgroundColor = color;
+      if (objectEngine) {
+        objectEngine.defaultStyle.fillColor = color;
+        objectEngine.defaultStyle.isFilled = true;
+      }
+      if (chkTextFill && !chkTextFill.checked) {
+        chkTextFill.checked = true;
+        if (wrapTextFillChip) wrapTextFillChip.classList.remove("is-none");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { fillColor: color, isFilled: true });
+      }
+    });
+  }
+
+  // 4. Text Bold & Italic
   if (btnObjBold) {
     btnObjBold.addEventListener("click", () => {
-      const cur = objectEngine.getSelectedItem();
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
       const nextBold = cur && cur.type === "text" ? !cur.isBold : !objectEngine.defaultStyle.isBold;
-      objectEngine.defaultStyle.isBold = nextBold;
+      if (objectEngine) objectEngine.defaultStyle.isBold = nextBold;
       btnObjBold.classList.toggle("active", nextBold);
       if (cur && cur.type === "text") {
-        const m = objectEngine.measureText(cur.text, cur.fontSize, nextBold, cur.fontFamily);
+        const m = objectEngine.measureText(cur.text, cur.fontSize, nextBold, cur.fontFamily, cur.isItalic);
         objectEngine.updateItem(cur.id, { isBold: nextBold, width: m.width, height: m.height });
         updateObjectSelectionUI();
       }
     });
   }
 
-  if (btnObjShadow) {
-    btnObjShadow.addEventListener("click", () => {
-      const cur = objectEngine.getSelectedItem();
-      const nextShadow = cur && cur.type === "text" ? !cur.hasTextShadow : !objectEngine.defaultStyle.hasTextShadow;
-      objectEngine.defaultStyle.hasTextShadow = nextShadow;
-      btnObjShadow.classList.toggle("active", nextShadow);
+  if (btnTextItalic) {
+    btnTextItalic.addEventListener("click", () => {
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      const nextItalic = cur && cur.type === "text" ? !cur.isItalic : !objectEngine.defaultStyle.isItalic;
+      if (objectEngine) objectEngine.defaultStyle.isItalic = nextItalic;
+      btnTextItalic.classList.toggle("active", nextItalic);
       if (cur && cur.type === "text") {
-        objectEngine.updateItem(cur.id, { hasTextShadow: nextShadow });
+        const m = objectEngine.measureText(cur.text, cur.fontSize, cur.isBold, cur.fontFamily, nextItalic);
+        objectEngine.updateItem(cur.id, { isItalic: nextItalic, width: m.width, height: m.height });
+        updateObjectSelectionUI();
+      }
+    });
+  }
+
+  // 5. Text Align (Left, Center, Right)
+  const textAlignButtons = [
+    { btn: btnTextAlignLeft, align: "left" },
+    { btn: btnTextAlignCenter, align: "center" },
+    { btn: btnTextAlignRight, align: "right" },
+  ];
+  textAlignButtons.forEach(({ btn, align }) => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        if (objectEngine) objectEngine.defaultStyle.textAlign = align;
+        textAlignButtons.forEach((b) => {
+          if (b.btn) b.btn.classList.toggle("active", b.align === align);
+        });
+        const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+        if (cur && cur.type === "text") {
+          objectEngine.updateItem(cur.id, { textAlign: align });
+        }
+      });
+    }
+  });
+
+  // 6. Text Opacity
+  if (rangeTextOpacity) {
+    rangeTextOpacity.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valTextOpacity) valTextOpacity.textContent = `${val}%`;
+      const opacity = val / 100;
+      if (objectEngine) objectEngine.defaultStyle.opacity = opacity;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { opacity });
+      }
+    });
+  }
+
+  // 7. Text Stroke (Toggle, Color, Width)
+  if (chkTextStroke) {
+    chkTextStroke.addEventListener("change", (e) => {
+      const isStroked = e.target.checked;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+
+      // Prevent completely transparent text
+      if (!isStroked) {
+        const isFilled = chkTextFill ? chkTextFill.checked : true;
+        if (!isFilled) {
+          if (chkTextFill) chkTextFill.checked = true;
+          if (wrapTextFillChip) wrapTextFillChip.classList.remove("is-none");
+          if (objectEngine) objectEngine.defaultStyle.isFilled = true;
+          if (cur && cur.type === "text") cur.isFilled = true;
+        }
+      }
+
+      if (bodyTextStroke) bodyTextStroke.classList.toggle("is-disabled", !isStroked);
+      if (wrapTextStrokeChip) wrapTextStrokeChip.classList.toggle("is-none", !isStroked);
+      if (objectEngine) objectEngine.defaultStyle.isStroked = isStroked;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { isStroked });
+        objectEngine.pushState();
+        updateUndoRedoButtons();
+      }
+    });
+  }
+
+  if (inputTextStrokeColor) {
+    inputTextStrokeColor.addEventListener("input", (e) => {
+      const color = e.target.value;
+      if (chipTextStrokeColor) chipTextStrokeColor.style.backgroundColor = color;
+      if (objectEngine) {
+        objectEngine.defaultStyle.strokeColor = color;
+        objectEngine.defaultStyle.isStroked = true;
+      }
+      if (chkTextStroke && !chkTextStroke.checked) {
+        chkTextStroke.checked = true;
+        if (bodyTextStroke) bodyTextStroke.classList.remove("is-disabled");
+        if (wrapTextStrokeChip) wrapTextStrokeChip.classList.remove("is-none");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { strokeColor: color, isStroked: true });
+      }
+    });
+  }
+
+  if (rangeTextStrokeWidth) {
+    rangeTextStrokeWidth.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valTextStrokeWidth) valTextStrokeWidth.textContent = `${val}px`;
+      if (objectEngine) {
+        objectEngine.defaultStyle.strokeWidth = val;
+        objectEngine.defaultStyle.isStroked = true;
+      }
+      if (chkTextStroke && !chkTextStroke.checked) {
+        chkTextStroke.checked = true;
+        if (bodyTextStroke) bodyTextStroke.classList.remove("is-disabled");
+        if (wrapTextStrokeChip) wrapTextStrokeChip.classList.remove("is-none");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { strokeWidth: val, isStroked: true });
+      }
+    });
+  }
+
+  // 8. Text Shadow (Toggle, Color, Blur, Offset)
+  if (chkTextShadow) {
+    chkTextShadow.addEventListener("change", (e) => {
+      const hasTextShadow = e.target.checked;
+      if (bodyTextShadow) bodyTextShadow.classList.toggle("is-disabled", !hasTextShadow);
+      if (objectEngine) objectEngine.defaultStyle.hasTextShadow = hasTextShadow;
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { hasTextShadow });
+      }
+    });
+  }
+
+  if (inputTextShadowColor) {
+    inputTextShadowColor.addEventListener("input", (e) => {
+      const color = e.target.value;
+      if (chipTextShadowColor) chipTextShadowColor.style.backgroundColor = color;
+      if (objectEngine) {
+        objectEngine.defaultStyle.shadowColor = color;
+        objectEngine.defaultStyle.hasTextShadow = true;
+      }
+      if (chkTextShadow && !chkTextShadow.checked) {
+        chkTextShadow.checked = true;
+        if (bodyTextShadow) bodyTextShadow.classList.remove("is-disabled");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { shadowColor: color, hasTextShadow: true });
+      }
+    });
+  }
+
+  if (rangeTextShadowBlur) {
+    rangeTextShadowBlur.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valTextShadowBlur) valTextShadowBlur.textContent = `${val}px`;
+      if (objectEngine) {
+        objectEngine.defaultStyle.shadowBlur = val;
+        objectEngine.defaultStyle.hasTextShadow = true;
+      }
+      if (chkTextShadow && !chkTextShadow.checked) {
+        chkTextShadow.checked = true;
+        if (bodyTextShadow) bodyTextShadow.classList.remove("is-disabled");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { shadowBlur: val, hasTextShadow: true });
+      }
+    });
+  }
+
+  if (rangeTextShadowOffset) {
+    rangeTextShadowOffset.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (valTextShadowOffset) valTextShadowOffset.textContent = `${val}px`;
+      if (objectEngine) {
+        objectEngine.defaultStyle.shadowOffset = val;
+        objectEngine.defaultStyle.hasTextShadow = true;
+      }
+      if (chkTextShadow && !chkTextShadow.checked) {
+        chkTextShadow.checked = true;
+        if (bodyTextShadow) bodyTextShadow.classList.remove("is-disabled");
+      }
+      const cur = objectEngine ? objectEngine.getSelectedItem() : null;
+      if (cur && cur.type === "text") {
+        objectEngine.updateItem(cur.id, { shadowOffset: val, hasTextShadow: true });
       }
     });
   }
@@ -1581,6 +2043,7 @@ function setupObjectTools() {
       if (objectEngine && objectEngine.selectedId) {
         objectEngine.duplicateItem(objectEngine.selectedId);
         updateObjectSelectionUI();
+        updateUndoRedoButtons();
       }
     });
   }
@@ -1589,6 +2052,7 @@ function setupObjectTools() {
     btnObjBringForward.addEventListener("click", () => {
       if (objectEngine && objectEngine.selectedId) {
         objectEngine.bringForward(objectEngine.selectedId);
+        updateUndoRedoButtons();
       }
     });
   }
@@ -1597,6 +2061,7 @@ function setupObjectTools() {
     btnObjSendBackward.addEventListener("click", () => {
       if (objectEngine && objectEngine.selectedId) {
         objectEngine.sendBackward(objectEngine.selectedId);
+        updateUndoRedoButtons();
       }
     });
   }
@@ -1643,6 +2108,74 @@ function setObjectStudioMode(active) {
   }
 }
 
+function syncTextInspectorUI(data) {
+  if (!data) return;
+  if (selectTextFontFamily && data.fontFamily) {
+    let matched = false;
+    for (let i = 0; i < selectTextFontFamily.options.length; i++) {
+      if (selectTextFontFamily.options[i].value === data.fontFamily) {
+        selectTextFontFamily.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const cleanName = data.fontFamily.replace(/['"]/g, "").split(",")[0].trim();
+      const opt = document.createElement("option");
+      opt.value = data.fontFamily;
+      opt.textContent = cleanName;
+      opt.selected = true;
+      selectTextFontFamily.appendChild(opt);
+    }
+  }
+  if (inputObjFontSize && typeof data.fontSize === "number") {
+    inputObjFontSize.value = data.fontSize;
+  }
+  const isFilled = data.isFilled !== false;
+  if (chkTextFill) chkTextFill.checked = isFilled;
+  if (wrapTextFillChip) wrapTextFillChip.classList.toggle("is-none", !isFilled);
+  const fillColor = data.fillColor || "#ffffff";
+  if (inputTextFillColor) inputTextFillColor.value = fillColor;
+  if (chipTextFillColor) chipTextFillColor.style.backgroundColor = fillColor;
+
+  if (btnObjBold) btnObjBold.classList.toggle("active", !!data.isBold);
+  if (btnTextItalic) btnTextItalic.classList.toggle("active", !!data.isItalic);
+
+  const align = data.textAlign || "center";
+  if (btnTextAlignLeft) btnTextAlignLeft.classList.toggle("active", align === "left");
+  if (btnTextAlignCenter) btnTextAlignCenter.classList.toggle("active", align === "center");
+  if (btnTextAlignRight) btnTextAlignRight.classList.toggle("active", align === "right");
+
+  const opacity = typeof data.opacity === "number" ? data.opacity : 1;
+  const pct = Math.round(opacity * 100);
+  if (rangeTextOpacity) rangeTextOpacity.value = pct;
+  if (valTextOpacity) valTextOpacity.textContent = `${pct}%`;
+
+  const isStroked = data.isStroked === true;
+  if (chkTextStroke) chkTextStroke.checked = isStroked;
+  if (bodyTextStroke) bodyTextStroke.classList.toggle("is-disabled", !isStroked);
+  if (wrapTextStrokeChip) wrapTextStrokeChip.classList.toggle("is-none", !isStroked);
+  const strokeColor = data.strokeColor || "#38bdf8";
+  if (inputTextStrokeColor) inputTextStrokeColor.value = strokeColor;
+  if (chipTextStrokeColor) chipTextStrokeColor.style.backgroundColor = strokeColor;
+  const strokeWidth = typeof data.strokeWidth === "number" ? data.strokeWidth : 3;
+  if (rangeTextStrokeWidth) rangeTextStrokeWidth.value = strokeWidth;
+  if (valTextStrokeWidth) valTextStrokeWidth.textContent = `${strokeWidth}px`;
+
+  const hasShadow = !!data.hasTextShadow;
+  if (chkTextShadow) chkTextShadow.checked = hasShadow;
+  if (bodyTextShadow) bodyTextShadow.classList.toggle("is-disabled", !hasShadow);
+  const shadowColor = data.shadowColor || "#000000";
+  if (inputTextShadowColor) inputTextShadowColor.value = shadowColor;
+  if (chipTextShadowColor) chipTextShadowColor.style.backgroundColor = shadowColor;
+  const shadowBlur = typeof data.shadowBlur === "number" ? data.shadowBlur : 4;
+  if (rangeTextShadowBlur) rangeTextShadowBlur.value = shadowBlur;
+  if (valTextShadowBlur) valTextShadowBlur.textContent = `${shadowBlur}px`;
+  const shadowOffset = typeof data.shadowOffset === "number" ? data.shadowOffset : 2;
+  if (rangeTextShadowOffset) rangeTextShadowOffset.value = shadowOffset;
+  if (valTextShadowOffset) valTextShadowOffset.textContent = `${shadowOffset}px`;
+}
+
 function setObjectActiveTool(toolName) {
   state.object.tool = toolName;
   if (objToolButtons) {
@@ -1651,27 +2184,44 @@ function setObjectActiveTool(toolName) {
     });
   }
 
-  const isText = toolName === "text";
-  const isLineOrArrow = toolName === "line" || toolName === "arrow";
-  const isRect = toolName === "rect";
+  const curItem = objectEngine ? objectEngine.getSelectedItem() : null;
+  const isText = toolName === "text" || (toolName === "select" && curItem && curItem.type === "text");
+  const isLineOrArrow = toolName === "line" || toolName === "arrow" || (toolName === "select" && curItem && (curItem.type === "line" || curItem.type === "arrow"));
+  const isRect = toolName === "rect" || (toolName === "select" && curItem && curItem.type === "rect");
+
+  // Toggle between Shape Controls and 3-Tier Text Inspector
+  if (objShapeControls) {
+    objShapeControls.classList.toggle("hidden", isText);
+  }
+  if (objTextInspector) {
+    objTextInspector.classList.toggle("hidden", !isText);
+  }
 
   if (labelStrokeText) {
-    labelStrokeText.textContent = isText
-      ? (typeof I18N !== "undefined" ? I18N.t("labelTextColor") : "글자 색상")
-      : (typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선");
+    labelStrokeText.textContent = typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선";
   }
 
   if (colObjFill) {
-    colObjFill.classList.toggle("hidden", isText || isLineOrArrow);
+    colObjFill.classList.toggle("hidden", isLineOrArrow);
+  }
+  if (btnObjStrokeClear) {
+    btnObjStrokeClear.classList.toggle("hidden", isLineOrArrow || objectEngine?.defaultStyle.isStroked === false);
   }
   if (groupBorderRadius) {
-    groupBorderRadius.classList.toggle("hidden", !isRect && toolName !== "select");
+    groupBorderRadius.classList.toggle("hidden", !isRect);
   }
-  if (groupTextOptions) {
-    groupTextOptions.classList.toggle("hidden", !isText && toolName !== "select");
-  }
-  if (groupStrokeWidth) {
-    groupStrokeWidth.classList.toggle("hidden", isText);
+
+  if (isText && objectEngine) {
+    syncTextInspectorUI(curItem && curItem.type === "text" ? curItem : objectEngine.defaultStyle);
+  } else if (objectEngine && typeof updateStrokeChipUI === "function") {
+    const isStroked = curItem ? (curItem.isStroked !== false) : (objectEngine.defaultStyle.isStroked !== false);
+    const strokeColor = curItem ? curItem.strokeColor : objectEngine.defaultStyle.strokeColor;
+    updateStrokeChipUI(isStroked, strokeColor);
+    if (typeof updateFillChipUI === "function") {
+      const isFilled = curItem ? curItem.isFilled : objectEngine.defaultStyle.isFilled;
+      const fillColor = curItem ? curItem.fillColor : objectEngine.defaultStyle.fillColor;
+      updateFillChipUI(isFilled, fillColor);
+    }
   }
 }
 
@@ -1685,10 +2235,23 @@ function updateObjectSelectionUI() {
   if (btnObjSendBackward) btnObjSendBackward.disabled = !hasSelection;
   if (btnObjDelete) btnObjDelete.disabled = !hasSelection;
 
-  if (!item || !objectSelectionBox) {
+  const isEditingCurrentText = item && item.type === "text" && (state.object.isEditingText || !item.text);
+  if (!item || !objectSelectionBox || isEditingCurrentText) {
     if (objectSelectionBox) objectSelectionBox.classList.add("hidden");
-    if (typeof updateFillChipUI === "function") {
-      updateFillChipUI(objectEngine.defaultStyle.isFilled, objectEngine.defaultStyle.fillColor);
+
+    const isTextTool = state.object.tool === "text";
+    if (objShapeControls) objShapeControls.classList.toggle("hidden", isTextTool);
+    if (objTextInspector) objTextInspector.classList.toggle("hidden", !isTextTool);
+
+    if (isTextTool) {
+      syncTextInspectorUI(objectEngine.defaultStyle);
+    } else {
+      if (typeof updateStrokeChipUI === "function") {
+        updateStrokeChipUI(objectEngine.defaultStyle.isStroked !== false, objectEngine.defaultStyle.strokeColor);
+      }
+      if (typeof updateFillChipUI === "function") {
+        updateFillChipUI(objectEngine.defaultStyle.isFilled, objectEngine.defaultStyle.fillColor);
+      }
     }
     return;
   }
@@ -1718,55 +2281,55 @@ function updateObjectSelectionUI() {
   const isLineOrArrow = item.type === "line" || item.type === "arrow";
   const isRect = item.type === "rect";
 
-  if (labelStrokeText) {
-    labelStrokeText.textContent = isText
-      ? (typeof I18N !== "undefined" ? I18N.t("labelTextColor") : "글자 색상")
-      : (typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선");
-  }
+  if (isText) {
+    if (objShapeControls) objShapeControls.classList.add("hidden");
+    if (objTextInspector) objTextInspector.classList.remove("hidden");
+    syncTextInspectorUI(item);
+  } else {
+    if (objShapeControls) objShapeControls.classList.remove("hidden");
+    if (objTextInspector) objTextInspector.classList.add("hidden");
 
-  if (colObjFill) {
-    colObjFill.classList.toggle("hidden", isText || isLineOrArrow);
-  }
+    if (labelStrokeText) {
+      labelStrokeText.textContent = typeof I18N !== "undefined" ? I18N.t("labelStrokeColor") : "외곽선";
+    }
 
-  // Sync contextual inspector values
-  if (inputObjStrokeColor && item.strokeColor) {
-    inputObjStrokeColor.value = item.strokeColor;
-    if (chipObjStrokeColor) chipObjStrokeColor.style.backgroundColor = item.strokeColor;
-  }
-  const isFilled = typeof item.isFilled === "boolean" ? item.isFilled : false;
-  const fillColor = item.fillColor || objectEngine.defaultStyle.fillColor;
-  if (inputObjFillColor && fillColor) {
-    inputObjFillColor.value = fillColor;
-  }
-  if (typeof updateFillChipUI === "function") {
-    updateFillChipUI(isFilled, fillColor);
-  }
-  if (rangeObjStrokeWidth && typeof item.strokeWidth === "number") {
-    rangeObjStrokeWidth.value = item.strokeWidth;
-    if (valObjStrokeWidth) valObjStrokeWidth.textContent = `${item.strokeWidth}px`;
-  }
-  if (rangeObjOpacity && typeof item.opacity === "number") {
-    const pct = Math.round(item.opacity * 100);
-    rangeObjOpacity.value = pct;
-    if (valObjOpacity) valObjOpacity.textContent = `${pct}%`;
-  }
-  if (rangeObjRadius && typeof item.borderRadius === "number" && groupBorderRadius) {
-    groupBorderRadius.classList.toggle("hidden", !isRect);
-    rangeObjRadius.value = item.borderRadius;
-    if (valObjRadius) valObjRadius.textContent = `${item.borderRadius}px`;
-  } else if (groupBorderRadius) {
-    groupBorderRadius.classList.add("hidden");
-  }
+    if (colObjFill) {
+      colObjFill.classList.toggle("hidden", isLineOrArrow);
+    }
 
-  if (isText && groupTextOptions) {
-    groupTextOptions.classList.remove("hidden");
-    if (inputObjFontSize && item.fontSize) inputObjFontSize.value = item.fontSize;
-    if (btnObjBold) btnObjBold.classList.toggle("active", !!item.isBold);
-    if (btnObjShadow) btnObjShadow.classList.toggle("active", !!item.hasTextShadow);
-    if (groupStrokeWidth) groupStrokeWidth.classList.add("hidden");
-  } else if (groupTextOptions) {
-    groupTextOptions.classList.add("hidden");
-    if (groupStrokeWidth) groupStrokeWidth.classList.remove("hidden");
+    // Sync shape inspector values
+    const isStroked = typeof item.isStroked === "boolean" ? item.isStroked : true;
+    const strokeColor = item.strokeColor || objectEngine.defaultStyle.strokeColor;
+    if (inputObjStrokeColor && strokeColor) {
+      inputObjStrokeColor.value = strokeColor;
+    }
+    if (typeof updateStrokeChipUI === "function") {
+      updateStrokeChipUI(isStroked, strokeColor);
+    }
+    const isFilled = item.isFilled === true;
+    const fillColor = item.fillColor || objectEngine.defaultStyle.fillColor;
+    if (inputObjFillColor && fillColor) {
+      inputObjFillColor.value = fillColor;
+    }
+    if (typeof updateFillChipUI === "function") {
+      updateFillChipUI(isFilled, fillColor);
+    }
+    if (rangeObjStrokeWidth && typeof item.strokeWidth === "number") {
+      rangeObjStrokeWidth.value = item.strokeWidth;
+      if (valObjStrokeWidth) valObjStrokeWidth.textContent = `${item.strokeWidth}px`;
+    }
+    if (rangeObjOpacity && typeof item.opacity === "number") {
+      const pct = Math.round(item.opacity * 100);
+      rangeObjOpacity.value = pct;
+      if (valObjOpacity) valObjOpacity.textContent = `${pct}%`;
+    }
+    if (rangeObjRadius && typeof item.borderRadius === "number" && groupBorderRadius) {
+      groupBorderRadius.classList.toggle("hidden", !isRect);
+      rangeObjRadius.value = item.borderRadius;
+      if (valObjRadius) valObjRadius.textContent = `${item.borderRadius}px`;
+    } else if (groupBorderRadius) {
+      groupBorderRadius.classList.add("hidden");
+    }
   }
 }
 
@@ -1774,6 +2337,7 @@ function deleteSelectedObject() {
   if (objectEngine && objectEngine.selectedId) {
     objectEngine.removeItem(objectEngine.selectedId);
     updateObjectSelectionUI();
+    updateUndoRedoButtons();
   }
 }
 
@@ -1787,24 +2351,43 @@ function setupInlineTextEditor() {
     const textVal = inlineTextEditor.value.trim();
 
     if (item && textVal) {
-      const m = objectEngine.measureText(textVal, item.fontSize, item.isBold, item.fontFamily);
+      const m = objectEngine.measureText(textVal, item.fontSize, item.isBold, item.fontFamily, item.isItalic);
       objectEngine.updateItem(item.id, {
         text: textVal,
         width: m.width,
-        height: m.height
+        height: m.height,
+        isEditing: false
       });
+      objectEngine.pushState();
+      updateUndoRedoButtons();
     } else if (item && !textVal) {
       objectEngine.removeItem(item.id);
+      updateUndoRedoButtons();
     }
 
     inlineTextEditor.classList.add("hidden");
     inlineTextEditor.value = "";
     inlineTextEditor.dataset.itemId = "";
     state.object.isEditingText = false;
+    if (objectEngine) objectEngine.renderAll();
     updateObjectSelectionUI();
   };
 
   inlineTextEditor.addEventListener("blur", commitText);
+
+  inlineTextEditor.addEventListener("input", () => {
+    const currentId = inlineTextEditor.dataset.itemId;
+    const item = objectEngine ? objectEngine.getItemById(currentId) : null;
+    if (!item) return;
+
+    applyInlineEditorStyle(item);
+
+    const placeholderText = typeof I18N !== "undefined" ? I18N.t("placeholderTextInput") : "텍스트 입력";
+    const val = inlineTextEditor.value || placeholderText;
+    const m = objectEngine ? objectEngine.measureText(val, item.fontSize, item.isBold, item.fontFamily, item.isItalic) : { width: 140, height: 40 };
+    inlineTextEditor.style.width = `${Math.max(160, m.width + 30)}px`;
+    inlineTextEditor.style.height = `${Math.max(Math.round(item.fontSize * 1.35), m.height + 10)}px`;
+  });
 
   inlineTextEditor.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1812,33 +2395,88 @@ function setupInlineTextEditor() {
       commitText();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      const currentId = inlineTextEditor.dataset.itemId;
+      const item = objectEngine ? objectEngine.getItemById(currentId) : null;
+      if (item) {
+        if (!item.text) {
+          objectEngine.removeItem(item.id);
+        } else {
+          item.isEditing = false;
+        }
+      }
       inlineTextEditor.classList.add("hidden");
+      inlineTextEditor.value = "";
+      inlineTextEditor.dataset.itemId = "";
       state.object.isEditingText = false;
+      if (objectEngine) objectEngine.renderAll();
       updateObjectSelectionUI();
     }
   });
 }
 
+function applyInlineEditorStyle(item) {
+  if (!inlineTextEditor || !item) return;
+  const hasText = !!inlineTextEditor.value;
+
+  let fontStyle = "";
+  if (item.isBold && hasText) fontStyle += "bold ";
+  if (item.isItalic && hasText) fontStyle += "italic ";
+  if (!fontStyle) fontStyle = "normal ";
+  inlineTextEditor.style.font = `${fontStyle}${item.fontSize}px ${item.fontFamily || "Inter, system-ui, sans-serif"}`;
+
+  if (hasText) {
+    const isStrokeOnly = item.strokeMode === "strokeOnly" || item.isFilled === false;
+    const fillColor = isStrokeOnly ? "transparent" : (item.fillColor || "#ffffff");
+    inlineTextEditor.style.color = fillColor;
+
+    const effectiveStrokeWidth = isStrokeOnly
+      ? Math.min(item.strokeWidth || 2, Math.max(1, Math.round(item.fontSize / 15)))
+      : (item.strokeWidth || 2);
+
+    if (item.isStroked !== false && effectiveStrokeWidth > 0) {
+      inlineTextEditor.style.webkitTextStroke = `${Math.min(effectiveStrokeWidth, 3)}px ${item.strokeColor || "#38bdf8"}`;
+    } else {
+      inlineTextEditor.style.webkitTextStroke = "none";
+    }
+  } else {
+    // 텍스트 설명(Placeholder): 흐릿하고 은은한 회색, 외곽선 및 그림자 없음
+    inlineTextEditor.style.color = "rgba(255, 255, 255, 0.42)";
+    inlineTextEditor.style.webkitTextStroke = "none";
+  }
+}
+
 function openInlineTextEditor(item) {
   if (!inlineTextEditor || !item) return;
   state.object.isEditingText = true;
+  item.isEditing = true;
+  if (objectEngine) objectEngine.renderAll();
+
+  const placeholderText = typeof I18N !== "undefined" ? I18N.t("placeholderTextInput") : "텍스트 입력";
   inlineTextEditor.dataset.itemId = item.id;
   inlineTextEditor.value = item.text || "";
+  inlineTextEditor.placeholder = placeholderText;
 
-  const fontStyle = item.isBold ? "bold " : "normal ";
-  inlineTextEditor.style.font = `${fontStyle}${item.fontSize}px ${item.fontFamily || "Inter, system-ui, sans-serif"}`;
-  inlineTextEditor.style.color = item.fillColor || "#ffffff";
+  applyInlineEditorStyle(item);
+
   inlineTextEditor.style.left = `${item.x}px`;
   inlineTextEditor.style.top = `${item.y}px`;
-  inlineTextEditor.style.width = `${Math.max(120, item.width + 20)}px`;
-  inlineTextEditor.style.height = `${Math.max(40, item.height + 10)}px`;
+
+  const textToMeasure = item.text || placeholderText;
+  const m = objectEngine ? objectEngine.measureText(textToMeasure, item.fontSize, item.isBold, item.fontFamily, item.isItalic) : { width: 140, height: 40 };
+  const initW = Math.max(160, m.width + 30);
+  const initH = Math.max(Math.round(item.fontSize * 1.35), m.height + 10);
+  inlineTextEditor.style.width = `${initW}px`;
+  inlineTextEditor.style.height = `${initH}px`;
   inlineTextEditor.style.textAlign = item.textAlign || "center";
 
   inlineTextEditor.classList.remove("hidden");
   setTimeout(() => {
     inlineTextEditor.focus();
-    inlineTextEditor.select();
+    if (inlineTextEditor.value) {
+      inlineTextEditor.select();
+    }
   }, 30);
+  updateObjectSelectionUI();
 }
 
 function handleObjectMouseDown(x, y, e) {
@@ -1862,9 +2500,43 @@ function handleObjectMouseDown(x, y, e) {
     return;
   }
 
-  // 3. New Object Creation Tool
+  // 3. Check Interaction with Existing / Currently Selected Item
   const tool = state.object.tool;
+  const hit = objectEngine.hitTest(x, y);
+  const selectedItem = objectEngine.getSelectedItem();
+
+  // (A) Clicked inside the currently selected object: allow moving / double-click editing
+  if (selectedItem && hit && hit.id === selectedItem.id) {
+    state.object.isMoving = true;
+    state.object.moveStartPos = { x, y };
+    state.object.initialItem = JSON.parse(JSON.stringify(hit));
+    if (objectSelectionBox) objectSelectionBox.classList.add("moving");
+    if (hit.type === "text" && e.detail >= 2) {
+      openInlineTextEditor(hit);
+    }
+    return;
+  }
+
+  // (B) When text tool is active, clicking an existing text selects and edits it rather than stacking a new one
+  if (tool === "text" && hit && hit.type === "text") {
+    objectEngine.selectItem(hit.id);
+    state.object.isMoving = true;
+    state.object.moveStartPos = { x, y };
+    state.object.initialItem = JSON.parse(JSON.stringify(hit));
+    if (objectSelectionBox) objectSelectionBox.classList.add("moving");
+    updateObjectSelectionUI();
+    if (e.detail >= 2) {
+      openInlineTextEditor(hit);
+    }
+    return;
+  }
+
+  // 4. New Object Creation Tool (Canvas empty space click / drag)
   if (tool && tool !== "select") {
+    // If clicking outside the selected object, clear previous selection and start creating new one
+    objectEngine.clearSelection();
+    updateObjectSelectionUI();
+
     state.object.isDrawing = true;
     state.object.drawStartPos = { x, y };
 
@@ -1877,11 +2549,17 @@ function handleObjectMouseDown(x, y, e) {
       height: 1,
       strokeColor: def.strokeColor,
       strokeWidth: def.strokeWidth,
+      isStroked: (tool === "line" || tool === "arrow") ? true : (def.isStroked !== false),
       fillColor: def.fillColor,
       isFilled: def.isFilled,
       opacity: def.opacity,
       rotation: 0
     };
+
+    // Safety fallback: ensure at least one of fill or stroke is enabled for shapes
+    if (!newItem.isStroked && !newItem.isFilled) {
+      newItem.isFilled = true;
+    }
 
     if (tool === "rect") {
       newItem.borderRadius = def.borderRadius;
@@ -1891,15 +2569,29 @@ function handleObjectMouseDown(x, y, e) {
       newItem.endX = x + 1;
       newItem.endY = y + 1;
     } else if (tool === "text") {
-      newItem.text = "텍스트 입력";
+      newItem.text = "";
       newItem.fontSize = def.fontSize;
       newItem.fontFamily = def.fontFamily;
-      newItem.isBold = def.isBold;
-      newItem.textAlign = def.textAlign;
-      newItem.hasTextShadow = def.hasTextShadow;
-      const m = objectEngine.measureText(newItem.text, newItem.fontSize, newItem.isBold, newItem.fontFamily);
-      newItem.width = m.width;
-      newItem.height = m.height;
+      newItem.isBold = !!def.isBold;
+      newItem.isItalic = !!def.isItalic;
+      newItem.textAlign = def.textAlign || "center";
+      newItem.hasTextShadow = def.hasTextShadow !== false;
+      newItem.shadowColor = def.shadowColor || "#000000";
+      newItem.shadowBlur = typeof def.shadowBlur === "number" ? def.shadowBlur : 4;
+      newItem.shadowOffset = typeof def.shadowOffset === "number" ? def.shadowOffset : 2;
+      newItem.isFilled = chkTextFill ? chkTextFill.checked : (def.isFilled !== false);
+      newItem.fillColor = def.fillColor || "#ffffff";
+      newItem.isStroked = chkTextStroke ? chkTextStroke.checked : !!def.isStroked;
+      newItem.strokeColor = def.strokeColor || "#38bdf8";
+      newItem.strokeWidth = typeof def.strokeWidth === "number" ? def.strokeWidth : 3;
+
+      if (!newItem.isFilled && !newItem.isStroked) {
+        newItem.isFilled = true;
+      }
+      const placeholderText = typeof I18N !== "undefined" ? I18N.t("placeholderTextInput") : "텍스트 입력";
+      const m = objectEngine ? objectEngine.measureText(placeholderText, def.fontSize, def.isBold, def.fontFamily, def.isItalic) : { width: 140, height: 40 };
+      newItem.width = Math.max(160, m.width + 30);
+      newItem.height = Math.max(Math.round(def.fontSize * 1.35), m.height + 10);
     }
 
     objectEngine.addItem(newItem);
@@ -1907,8 +2599,7 @@ function handleObjectMouseDown(x, y, e) {
     return;
   }
 
-  // 4. Select Tool Hit Testing
-  const hit = objectEngine.hitTest(x, y);
+  // 5. Select Tool Hit Testing
   if (hit) {
     objectEngine.selectItem(hit.id);
     state.object.isMoving = true;
@@ -1938,6 +2629,7 @@ function handleObjectMouseMove(x, y, e) {
     const rad = Math.atan2(y - cy, x - cx);
     const deg = Math.round(rad * (180 / Math.PI)) - 90;
     objectEngine.updateItem(item.id, { rotation: (deg + 360) % 360 });
+    state.object.hasModified = true;
     updateObjectSelectionUI();
     return;
   }
@@ -1974,6 +2666,7 @@ function handleObjectMouseMove(x, y, e) {
 
       objectEngine.updateItem(init.id, { x: newX, y: newY, width: newW, height: newH });
     }
+    state.object.hasModified = true;
     updateObjectSelectionUI();
     return;
   }
@@ -1996,6 +2689,7 @@ function handleObjectMouseMove(x, y, e) {
     } else {
       objectEngine.updateItem(init.id, { x: init.x + dx, y: init.y + dy });
     }
+    state.object.hasModified = true;
     updateObjectSelectionUI();
     return;
   }
@@ -2026,6 +2720,7 @@ function handleObjectMouseMove(x, y, e) {
 
       objectEngine.updateItem(curId, { x: left, y: top, width: w, height: h });
     }
+    state.object.hasModified = true;
     updateObjectSelectionUI();
   }
 }
@@ -2033,23 +2728,30 @@ function handleObjectMouseMove(x, y, e) {
 function handleObjectMouseUp() {
   if (!state.object.active || !objectEngine) return;
 
+  let shouldPushHistory = false;
+
   if (state.object.isDrawing) {
     const cur = objectEngine.getSelectedItem();
     if (cur) {
       if (cur.type === "text") {
         openInlineTextEditor(cur);
-      } else if (cur.width < 8 && cur.height < 8) {
-        // Correct tiny accidental clicks to standard default size
-        objectEngine.updateItem(cur.id, { width: 120, height: 90 });
+      } else {
+        if (cur.width < 8 && cur.height < 8) {
+          // Correct tiny accidental clicks to standard default size
+          objectEngine.updateItem(cur.id, { width: 120, height: 90 });
+        }
+        shouldPushHistory = true;
       }
     }
     state.object.isDrawing = false;
-    setObjectActiveTool("select");
+  } else if (state.object.hasModified) {
+    shouldPushHistory = true;
   }
 
   state.object.isMoving = false;
   state.object.isResizing = false;
   state.object.isRotating = false;
+  state.object.hasModified = false;
   state.object.resizeHandle = null;
   state.object.initialItem = null;
 
@@ -2057,6 +2759,11 @@ function handleObjectMouseUp() {
     objectSelectionBox.classList.remove("moving");
   }
   updateObjectSelectionUI();
+
+  if (shouldPushHistory) {
+    objectEngine.pushState();
+    updateUndoRedoButtons();
+  }
 }
 
 function glueObjectsToMainCanvas() {
@@ -2611,6 +3318,15 @@ function syncCanvasDimensions(width, height, newMainCanvas = null, newOriginalCa
 // -------------------------------------------------------------
 function setupActionButtons() {
   btnUndo.addEventListener("click", () => {
+    // 1. Prioritize Object Studio Undo if there are object history states
+    if (objectEngine && objectEngine.canUndo() && (state.object.active || objectEngine.hasItems())) {
+      objectEngine.undo();
+      updateObjectSelectionUI();
+      updateUndoRedoButtons();
+      return;
+    }
+
+    // 2. Fall back to Bitmap canvas history
     const snapshot = historyManager.undo(mainCanvas);
     if (snapshot) {
       const prev = snapshot.main || snapshot;
@@ -2635,6 +3351,15 @@ function setupActionButtons() {
   });
 
   btnRedo.addEventListener("click", () => {
+    // 1. Prioritize Object Studio Redo if there are object history states
+    if (objectEngine && objectEngine.canRedo() && (state.object.active || objectEngine.hasItems() || (objectEngine.redoStack && objectEngine.redoStack.length > 0))) {
+      objectEngine.redo();
+      updateObjectSelectionUI();
+      updateUndoRedoButtons();
+      return;
+    }
+
+    // 2. Fall back to Bitmap canvas history
     const snapshot = historyManager.redo(mainCanvas);
     if (snapshot) {
       const next = snapshot.main || snapshot;
@@ -2745,8 +3470,11 @@ function setupActionButtons() {
 }
 
 function updateUndoRedoButtons() {
-  btnUndo.disabled = !historyManager.canUndo();
-  btnRedo.disabled = !historyManager.canRedo();
+  const canUndoObj = !!(objectEngine && objectEngine.canUndo() && (state.object.active || objectEngine.hasItems()));
+  const canRedoObj = !!(objectEngine && objectEngine.canRedo() && (state.object.active || objectEngine.hasItems() || (objectEngine.redoStack && objectEngine.redoStack.length > 0)));
+
+  btnUndo.disabled = !(canUndoObj || historyManager.canUndo());
+  btnRedo.disabled = !(canRedoObj || historyManager.canRedo());
 }
 
 function setupShortcuts() {
@@ -2760,11 +3488,12 @@ function setupShortcuts() {
       return;
     }
 
-    // Ctrl + D: Duplicate selected object
-    if (e.ctrlKey && (e.key === "d" || e.key === "D") && state.object.active && objectEngine && objectEngine.selectedId) {
+    // Ctrl / Cmd + D: Duplicate selected object
+    if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D") && state.object.active && objectEngine && objectEngine.selectedId) {
       e.preventDefault();
       objectEngine.duplicateItem(objectEngine.selectedId);
       updateObjectSelectionUI();
+      updateUndoRedoButtons();
       return;
     }
 
@@ -2775,18 +3504,18 @@ function setupShortcuts() {
       return;
     }
 
-    // Ctrl + Z: Undo
-    if (e.ctrlKey && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+    // Ctrl / Cmd + Z: Undo
+    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
       e.preventDefault();
       btnUndo.click();
     }
-    // Ctrl + Y or Ctrl + Shift + Z: Redo
-    if ((e.ctrlKey && (e.key === "y" || e.key === "Y")) || (e.ctrlKey && e.shiftKey && (e.key === "z" || e.key === "Z"))) {
+    // Ctrl / Cmd + Y or Ctrl / Cmd + Shift + Z: Redo
+    if (((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) || ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "z" || e.key === "Z"))) {
       e.preventDefault();
       btnRedo.click();
     }
-    // Ctrl + C: Copy to Clipboard
-    if (e.ctrlKey && (e.key === "c" || e.key === "C") && state.originalImage) {
+    // Ctrl / Cmd + C: Copy to Clipboard
+    if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C") && state.originalImage) {
       e.preventDefault();
       btnCopyClipboard.click();
     }

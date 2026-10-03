@@ -16,16 +16,95 @@ class ObjectEngine {
     this.defaultStyle = {
       strokeColor: "#38bdf8",
       strokeWidth: 4,
+      isStroked: true,
       fillColor: "#ffffff",
       isFilled: false,
       opacity: 1.0,
       borderRadius: 8,
       fontSize: 28,
-      fontFamily: "Inter, system-ui, sans-serif",
+      fontFamily: "'Malgun Gothic', '맑은 고딕', Inter, system-ui, sans-serif",
       isBold: true,
+      isItalic: false,
       textAlign: "center",
       hasTextShadow: true,
+      shadowColor: "#000000",
+      shadowBlur: 4,
+      shadowOffset: 2,
     };
+
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistorySteps = 30;
+    this.pushState();
+  }
+
+  /**
+   * Resets object history
+   */
+  clearHistory() {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.pushState();
+  }
+
+  /**
+   * Pushes current objects snapshot to undo stack
+   */
+  pushState() {
+    const serialized = JSON.stringify(this.items);
+    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === serialized) {
+      return;
+    }
+    this.undoStack.push(serialized);
+    if (this.undoStack.length > this.maxHistorySteps) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+  }
+
+  /**
+   * Checks if undo is possible for objects
+   */
+  canUndo() {
+    return this.undoStack.length > 1;
+  }
+
+  /**
+   * Checks if redo is possible for objects
+   */
+  canRedo() {
+    return this.redoStack.length > 0;
+  }
+
+  /**
+   * Undoes the last object manipulation
+   */
+  undo() {
+    if (!this.canUndo()) return false;
+    const current = this.undoStack.pop();
+    this.redoStack.push(current);
+    const prev = this.undoStack[this.undoStack.length - 1];
+    this.items = JSON.parse(prev);
+    if (this.selectedId && !this.items.some((it) => it.id === this.selectedId)) {
+      this.selectedId = null;
+    }
+    this.renderAll();
+    return true;
+  }
+
+  /**
+   * Redoes the undone object manipulation
+   */
+  redo() {
+    if (!this.canRedo()) return false;
+    const next = this.redoStack.pop();
+    this.undoStack.push(next);
+    this.items = JSON.parse(next);
+    if (this.selectedId && !this.items.some((it) => it.id === this.selectedId)) {
+      this.selectedId = null;
+    }
+    this.renderAll();
+    return true;
   }
 
   /**
@@ -122,6 +201,7 @@ class ObjectEngine {
         this.selectedId = null;
       }
       this.renderAll();
+      this.pushState();
       return true;
     }
     return false;
@@ -147,6 +227,7 @@ class ObjectEngine {
     this.items.push(cloned);
     this.selectedId = cloned.id;
     this.renderAll();
+    this.pushState();
     return cloned;
   }
 
@@ -159,6 +240,7 @@ class ObjectEngine {
       const item = this.items.splice(idx, 1)[0];
       this.items.splice(idx + 1, 0, item);
       this.renderAll();
+      this.pushState();
     }
   }
 
@@ -171,6 +253,7 @@ class ObjectEngine {
       const item = this.items.splice(idx, 1)[0];
       this.items.splice(idx - 1, 0, item);
       this.renderAll();
+      this.pushState();
     }
   }
 
@@ -178,9 +261,12 @@ class ObjectEngine {
    * Clears all items and resets canvas
    */
   clearAll() {
-    this.items = [];
-    this.selectedId = null;
-    this.renderAll();
+    if (this.items.length > 0) {
+      this.items = [];
+      this.selectedId = null;
+      this.renderAll();
+      this.pushState();
+    }
   }
 
   /**
@@ -222,7 +308,7 @@ class ObjectEngine {
    * 1. Rectangle Renderer
    */
   _renderRect(ctx, item) {
-    const { x, y, width, height, strokeColor, strokeWidth, fillColor, isFilled, borderRadius = 0 } = item;
+    const { x, y, width, height, strokeColor, strokeWidth, fillColor, isFilled, isStroked = true, borderRadius = 0 } = item;
     ctx.lineWidth = strokeWidth;
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = fillColor;
@@ -236,14 +322,14 @@ class ObjectEngine {
     }
 
     if (isFilled) ctx.fill();
-    if (strokeWidth > 0) ctx.stroke();
+    if (isStroked && strokeWidth > 0) ctx.stroke();
   }
 
   /**
    * 2. Circle / Ellipse Renderer
    */
   _renderCircle(ctx, item) {
-    const { x, y, width, height, strokeColor, strokeWidth, fillColor, isFilled } = item;
+    const { x, y, width, height, strokeColor, strokeWidth, fillColor, isFilled, isStroked = true } = item;
     ctx.lineWidth = strokeWidth;
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = fillColor;
@@ -257,7 +343,7 @@ class ObjectEngine {
     ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
 
     if (isFilled) ctx.fill();
-    if (strokeWidth > 0) ctx.stroke();
+    if (isStroked && strokeWidth > 0) ctx.stroke();
   }
 
   /**
@@ -276,44 +362,67 @@ class ObjectEngine {
   }
 
   /**
-   * 4. Arrow Renderer (High Precision Triangular Head)
+   * 4. Arrow Renderer (Sharp, High Precision Head)
    */
   _renderArrow(ctx, item) {
     const { startX, startY, endX, endY, strokeColor, strokeWidth } = item;
-    ctx.lineWidth = strokeWidth;
-    ctx.strokeStyle = strokeColor;
-    ctx.fillStyle = strokeColor;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
 
     const dx = endX - startX;
     const dy = endY - startY;
-    const angle = Math.atan2(dy, dx);
     const length = Math.sqrt(dx * dx + dy * dy);
+    if (length < 2) return;
 
-    // Arrowhead size dynamically scaled with stroke width
-    const headLength = Math.max(12, strokeWidth * 3.5);
-    const headAngle = Math.PI / 6; // 30 degrees
+    const angle = Math.atan2(dy, dx);
 
+    // Arrowhead size dynamically scaled with stroke width, sharp proportions
+    const headLength = Math.max(14, strokeWidth * 3.6);
+    const actualHeadLength = Math.min(headLength, length * 0.8);
+    const headAngle = Math.PI / 7; // ~25.7 degrees for a sleeker, sharper tip
+
+    // Shorten the shaft so round lineCap doesn't stick out past the sharp arrow tip
+    const overlap = Math.min(strokeWidth * 0.7, 5);
+    const shaftEndX = endX - (actualHeadLength - overlap) * Math.cos(angle);
+    const shaftEndY = endY - (actualHeadLength - overlap) * Math.sin(angle);
+
+    // 1. Draw shaft
+    ctx.save();
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.lineTo(endX, endY);
+    ctx.lineTo(shaftEndX, shaftEndY);
     ctx.stroke();
+    ctx.restore();
 
-    if (length > 5) {
-      ctx.beginPath();
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(
-        endX - headLength * Math.cos(angle - headAngle),
-        endY - headLength * Math.sin(angle - headAngle)
-      );
-      ctx.lineTo(
-        endX - headLength * Math.cos(angle + headAngle),
-        endY - headLength * Math.sin(angle + headAngle)
-      );
-      ctx.closePath();
-      ctx.fill();
-    }
+    // 2. Draw sharp arrowhead (Chevron profile with crisp mitered tip)
+    ctx.save();
+    ctx.fillStyle = strokeColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1;
+    ctx.lineJoin = "miter";
+    ctx.miterLimit = 4;
+
+    const leftX = endX - actualHeadLength * Math.cos(angle - headAngle);
+    const leftY = endY - actualHeadLength * Math.sin(angle - headAngle);
+    const rightX = endX - actualHeadLength * Math.cos(angle + headAngle);
+    const rightY = endY - actualHeadLength * Math.sin(angle + headAngle);
+
+    // Subtle indent in the base for a modern, sleek arrowhead
+    const indent = actualHeadLength * 0.18;
+    const baseX = endX - (actualHeadLength - indent) * Math.cos(angle);
+    const baseY = endY - (actualHeadLength - indent) * Math.sin(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(endX, endY); // Razor-sharp tip
+    ctx.lineTo(leftX, leftY);
+    ctx.lineTo(baseX, baseY);
+    ctx.lineTo(rightX, rightY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   /**
@@ -329,15 +438,29 @@ class ObjectEngine {
       fontSize = 28,
       fontFamily = "Inter, system-ui, sans-serif",
       isBold = true,
+      isItalic = false,
       fillColor = "#ffffff",
-      strokeColor = "#000000",
+      strokeColor = "#38bdf8",
+      strokeWidth = 3,
+      isFilled = true,
+      isStroked = true,
       hasTextShadow = true,
+      shadowColor = "#000000",
+      shadowBlur = 4,
+      shadowOffset = 2,
       textAlign = "center",
     } = item;
 
-    if (!text) return;
+    if (!text || item.isEditing) return;
 
-    const fontStyle = isBold ? "bold " : "normal ";
+    // Safety fallback: ensure at least one of fill or stroke is active
+    const effectiveFilled = isFilled !== false || isStroked === false;
+    const effectiveStroked = isStroked === true && strokeWidth > 0;
+
+    let fontStyle = "";
+    if (isBold) fontStyle += "bold ";
+    if (isItalic) fontStyle += "italic ";
+    if (!fontStyle) fontStyle = "normal ";
     ctx.font = `${fontStyle}${fontSize}px ${fontFamily}`;
     ctx.textAlign = textAlign;
     ctx.textBaseline = "middle";
@@ -355,28 +478,55 @@ class ObjectEngine {
     for (let i = 0; i < lines.length; i++) {
       const lineY = startY + i * lineHeight;
 
-      // Soft drop shadow / contrast stroke for readability
+      // 1. Text Shadow
       if (hasTextShadow) {
         ctx.save();
-        ctx.strokeStyle = strokeColor || "rgba(0, 0, 0, 0.75)";
-        ctx.lineWidth = Math.max(2, Math.round(fontSize / 8));
+        ctx.shadowColor = shadowColor || "rgba(0, 0, 0, 0.75)";
+        ctx.shadowBlur = typeof shadowBlur === "number" ? shadowBlur : 4;
+        ctx.shadowOffsetX = typeof shadowOffset === "number" ? shadowOffset : 2;
+        ctx.shadowOffsetY = typeof shadowOffset === "number" ? shadowOffset : 2;
+        if (effectiveFilled) {
+          ctx.fillStyle = fillColor;
+          ctx.fillText(lines[i], targetX, lineY);
+        } else if (effectiveStroked) {
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = strokeWidth;
+          ctx.lineJoin = "round";
+          ctx.strokeText(lines[i], targetX, lineY);
+        }
+        ctx.restore();
+      }
+
+      // 2. Text Stroke (Outer Stroke technique: drawn first with 2x width if filled, so fill covers inside)
+      if (effectiveStroked) {
+        ctx.save();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = effectiveFilled ? strokeWidth * 2 : strokeWidth;
         ctx.lineJoin = "round";
         ctx.miterLimit = 2;
         ctx.strokeText(lines[i], targetX, lineY);
         ctx.restore();
       }
 
-      ctx.fillStyle = fillColor;
-      ctx.fillText(lines[i], targetX, lineY);
+      // 3. Text Fill (Body: overlaid on top of stroke for razor sharp typography)
+      if (effectiveFilled) {
+        ctx.save();
+        ctx.fillStyle = fillColor;
+        ctx.fillText(lines[i], targetX, lineY);
+        ctx.restore();
+      }
     }
   }
 
   /**
    * Measures text bounding box
    */
-  measureText(text, fontSize, isBold, fontFamily) {
+  measureText(text, fontSize, isBold, fontFamily, isItalic) {
     if (!this.ctx) return { width: 100, height: 40 };
-    const fontStyle = isBold ? "bold " : "normal ";
+    let fontStyle = "";
+    if (isBold) fontStyle += "bold ";
+    if (isItalic) fontStyle += "italic ";
+    if (!fontStyle) fontStyle = "normal ";
     this.ctx.font = `${fontStyle}${fontSize}px ${fontFamily || "Inter, system-ui, sans-serif"}`;
     const lines = (text || "텍스트").split("\n");
     let maxW = 0;

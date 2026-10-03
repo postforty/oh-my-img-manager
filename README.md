@@ -21,6 +21,13 @@
 - **High-Quality Image Resizing**: Fine-tune dimensions directly via pixel inputs, lock/unlock aspect ratios, and choose one-click preset scale chips (`100%`, `75%`, `50%`, `25%`) with high-grade multi-step downscaling.
 - **Color Key & Classic Photoshop Eyedropper**: Pick solid background colors with an authentic Photoshop-style pipette cursor (exact 1px tip hotspot) and adjust Tolerance and Feathering.
 - **Manual Retouching Brushes**: Fine-tune delicate details using precision Eraser and Restore brushes.
+- **Vector Object Studio & Sharp Graphic Annotations**: Draw rectangles (with customizable corner radii), circles/ellipses, straight lines, and razor-sharp chevron arrows with interactive 8-direction handles and freeform rotation.
+- **Professional 3-Tier Text Inspector**:
+  - `Text (Fill)`: Independent checkbox, system font picker, font size, bold, italic, alignments, text color, and opacity slider.
+  - `Outline (Stroke)`: Independent checkbox, stroke color, and 1–24px outer-stroke slider rendering crisp borders without shrinking glyphs.
+  - `Drop Shadow`: High-contrast drop shadow with customizable color, blur radius, and distance offsets.
+  - `Local System Font Scanner`: Access all fonts installed on your PC via the `window.queryLocalFonts` API alongside built-in Windows Korean/English fonts.
+  - `Dedicated Vector Undo/Redo`: Independent vector history with `Ctrl+Z` / `Ctrl+Y` (`Cmd+Z`, `Cmd+Shift+Z` on macOS) support, selection duplicates (`Ctrl+D`), and 2×2 grid layer management.
 - **Lossless Dual-Canvas Undo/Redo**: Full history support (`Ctrl+Z` / `Ctrl+Y`) that keeps original restore data and split comparison views 100% synchronized across crops and resizing.
 - **Seamless Clipboard Integration**: Paste images directly with `Ctrl+V` and copy cutouts with `Ctrl+C` for immediate use in Figma, Photoshop, PowerPoint, or messaging apps.
 - **Side-by-Side Split View & Background Fill**: Compare original and cutout results with an interactive slider, and easily replace backgrounds with solid white, black, or custom colors.
@@ -126,6 +133,27 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 ---
 
 ## 📜 Version History
+
+### 🚀 v1.5.0 (`2026-10-04`)
+**Vector Object Studio (Shapes, Sharp Arrows) & 3-Tier Text Inspector with Local Font Scanner**
+- **Vector Object Studio Engine (`remover/object-engine.js`)**:
+  - Lightweight zero-dependency HTML5 vector canvas overlay supporting Rectangles (with rounded corners), Circles, Lines, and Arrows.
+  - **Razor-Sharp Chevron Arrows**: Redesigned arrow tip geometry with shortened shaft line-caps and crisp mitered join rendering, eliminating blunt protrusion artifacts.
+- **Professional 3-Tier Text Inspector**:
+  - **Independent Fill & Stroke Controls**: Modular toggles for `[v] Text (Fill)` and `[v] Outline (Stroke)` avoiding redundant mode confusion and enabling solid, bordered, or hollow text styles.
+  - **True Outer-Stroke Rendering**: Canvas stroke-first drawing pipeline preserving interior font forms even at high 24px stroke widths.
+  - **Drop Shadow Controls**: Configurable shadow color, blur radius, and distance offsets.
+- **Local Font Scanner & Expanded System Typography**:
+  - Integrated `window.queryLocalFonts()` API allowing users to load and use any PC-installed font.
+  - Built-in Korean fonts (맑은 고딕, 굴림, 돋움, 바탕, 궁서) and standard English system fonts.
+- **Lossless Vector Undo/Redo Engine**:
+  - Dedicated vector history stack tracking item creation, transformation, deletion, duplication, and reordering.
+  - Seamless `Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z` (and macOS `Cmd` keys) shortcut bindings integrated with top toolbar action buttons.
+- **Contextual Inspector & 2×2 Layer Action Grid**:
+  - Intelligent auto-switching between shape controls and text inspector based on tool and active selection.
+  - Compact 2×2 button grid for Duplicate, Delete, Bring Forward, and Send Backward actions.
+
+---
 
 ### 🚀 v1.4.0 (`2026-09-26`)
 **Multi-Format Save Studio (PNG, WEBP, JPEG, GIF) & Embedded Pure JS GIF Encoder**

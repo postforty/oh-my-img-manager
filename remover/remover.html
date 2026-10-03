@@ -393,7 +393,11 @@
         <section class="control-section object-tool-section" id="objectToolSection">
           <div class="section-header-row">
             <h2 class="section-title">
-              <span class="step-num">7</span>
+              <svg class="title-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3.15a.7.7 0 0 1 1.2 0l3.726 5.771A.7.7 0 0 1 15.7 10H8.3z"></path>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                <circle cx="17.5" cy="17.5" r="3.5"></circle>
+              </svg>
               <span data-i18n="sectionObjectTitle">개체 추가</span>
             </h2>
             <button id="btnToggleObjectPanel" class="btn btn-tiny btn-outline active" data-i18n-title="btnToggleObjectTitle" title="도구 패널 접기/펼치기">
@@ -449,73 +453,232 @@
             <!-- Contextual Properties Inspector -->
             <!-- Contextual Properties Inspector -->
             <div class="obj-inspector" id="objInspector">
-              <!-- Colors & Fill Row -->
-              <div class="obj-colors-row">
-                <div class="obj-color-item" id="colObjStroke">
-                  <span class="obj-mini-label" id="labelStrokeText" data-i18n="labelStrokeColor">외곽선</span>
-                  <div class="obj-color-chip-wrap" title="색상 선택">
-                    <input type="color" id="inputObjStrokeColor" value="#38bdf8" />
-                    <span class="obj-color-preview-chip" id="chipObjStrokeColor" style="background-color: #38bdf8;"></span>
+              <!-- 1. Shape Controls (Rect, Circle, Arrow, Line) -->
+              <div class="obj-shape-controls" id="objShapeControls">
+                <!-- Colors & Fill Row -->
+                <div class="obj-colors-row">
+                  <div class="obj-color-item" id="colObjStroke">
+                    <span class="obj-mini-label" id="labelStrokeText" data-i18n="labelStrokeColor">외곽선</span>
+                    <div class="obj-stroke-controls">
+                      <div class="obj-smart-chip-wrap" id="wrapObjStrokeChip" data-i18n-title="tipStrokeColor" title="외곽선 색상 선택 (클릭하여 켜기/변경)">
+                        <input type="color" id="inputObjStrokeColor" value="#38bdf8" />
+                        <div class="obj-chip-preview" id="chipObjStrokeColor" style="background-color: #38bdf8;">
+                          <span class="chip-none-slash hidden" id="iconStrokeNone"></span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-chip-clear" id="btnObjStrokeClear" data-i18n-title="tipStrokeNone" title="외곽선 없음 (투명)" aria-label="외곽선 없음">
+                        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="obj-color-item" id="colObjFill">
+                    <span class="obj-mini-label" data-i18n="labelFillColor">채우기</span>
+                    <div class="obj-fill-controls">
+                      <div class="obj-smart-chip-wrap is-none" id="wrapObjFillChip" data-i18n-title="tipFillColor" title="채우기 색상 선택 (클릭하여 켜기/변경)">
+                        <input type="color" id="inputObjFillColor" value="#ffffff" />
+                        <div class="obj-chip-preview" id="chipObjFillColor" style="background-color: transparent;">
+                          <span class="chip-none-slash" id="iconFillNone"></span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-chip-clear hidden" id="btnObjFillClear" data-i18n-title="tipFillNone" title="채우기 없음 (투명)" aria-label="채우기 없음">
+                        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div class="obj-color-item" id="colObjFill">
-                  <span class="obj-mini-label" data-i18n="labelFillColor">채우기</span>
-                  <div class="obj-fill-controls">
-                    <div class="obj-smart-chip-wrap is-none" id="wrapObjFillChip" data-i18n-title="tipFillColor" title="채우기 색상 선택 (클릭하여 켜기/변경)">
-                      <input type="color" id="inputObjFillColor" value="#ffffff" />
-                      <div class="obj-chip-preview" id="chipObjFillColor" style="background-color: transparent;">
-                        <span class="chip-none-slash" id="iconFillNone"></span>
+
+                <!-- Stroke Width Slider -->
+                <div class="slider-item" id="groupStrokeWidth">
+                  <div class="slider-label">
+                    <span data-i18n="labelStrokeWidth">선 굵기</span>
+                    <span class="slider-value" id="valObjStrokeWidth">4px</span>
+                  </div>
+                  <input type="range" id="rangeObjStrokeWidth" min="1" max="40" value="4" />
+                </div>
+
+                <!-- Opacity Slider -->
+                <div class="slider-item" id="groupOpacity">
+                  <div class="slider-label">
+                    <span data-i18n="labelOpacity">불투명도</span>
+                    <span class="slider-value" id="valObjOpacity">100%</span>
+                  </div>
+                  <input type="range" id="rangeObjOpacity" min="10" max="100" value="100" />
+                </div>
+
+                <!-- Border Radius Slider (Rect only) -->
+                <div class="slider-item hidden" id="groupBorderRadius">
+                  <div class="slider-label">
+                    <span data-i18n="labelBorderRadius">모서리 둥글기</span>
+                    <span class="slider-value" id="valObjRadius">8px</span>
+                  </div>
+                  <input type="range" id="rangeObjRadius" min="0" max="80" value="8" />
+                </div>
+              </div>
+
+              <!-- 2. Professional 3-Tier Text Inspector -->
+              <div class="obj-text-inspector hidden" id="objTextInspector">
+                <!-- Tier 1: 글 (Font, Size, Color, Style, Align, Opacity) -->
+                <div class="text-group-card" id="cardTextFont">
+                  <div class="text-group-header">
+                    <label class="checkbox-label text-sec-toggle">
+                      <input type="checkbox" id="chkTextFill" checked />
+                      <span data-i18n="textSecFont">글 (채우기)</span>
+                    </label>
+                  </div>
+                  <div class="text-group-body">
+                    <!-- Row 1: Font Family + Size + Color -->
+                    <div class="text-font-row">
+                      <select id="selectTextFontFamily" class="select-text-font" title="폰트 패밀리">
+                        <option value="__SCAN_LOCAL__" data-i18n="fontScanLocal">💻 내 PC 폰트 불러오기...</option>
+                        <option value="__CUSTOM_INPUT__" data-i18n="fontCustomInput">✏️ 폰트명 직접 입력...</option>
+
+                        <optgroup label="윈도우 기본 한글 폰트" data-i18n-label="groupWinKoFonts">
+                          <option value="'Malgun Gothic', '맑은 고딕', sans-serif" data-i18n="fontMalgun" selected>맑은 고딕 (Malgun Gothic)</option>
+                          <option value="'Gulim', '굴림', sans-serif" data-i18n="fontGulim">굴림 (Gulim)</option>
+                          <option value="'Dotum', '돋움', sans-serif" data-i18n="fontDotum">돋움 (Dotum)</option>
+                          <option value="'Batang', '바탕', serif" data-i18n="fontBatang">바탕 (Batang)</option>
+                          <option value="'Gungsuh', '궁서', serif" data-i18n="fontGungsuh">궁서 (Gungsuh)</option>
+                        </optgroup>
+
+                        <optgroup label="웹 / 모던 폰트" data-i18n-label="groupWebFonts">
+                          <option value="'Pretendard', -apple-system, sans-serif" data-i18n="fontPretendard">Pretendard</option>
+                          <option value="'Noto Sans KR', sans-serif" data-i18n="fontNotoSansKR">Noto Sans KR (본고딕)</option>
+                          <option value="'Nanum Gothic', sans-serif" data-i18n="fontNanumGothic">나눔고딕 (Nanum Gothic)</option>
+                          <option value="'Nanum Myeongjo', serif" data-i18n="fontNanumMyeongjo">나눔명조 (Nanum Myeongjo)</option>
+                          <option value="Inter, system-ui, sans-serif" data-i18n="fontInter">Inter (시스템 기본)</option>
+                        </optgroup>
+
+                        <optgroup label="윈도우 기본 영문 폰트" data-i18n-label="groupWinEnFonts">
+                          <option value="'Segoe UI', sans-serif" data-i18n="fontSegoeUI">Segoe UI (Windows 기본)</option>
+                          <option value="Arial, sans-serif" data-i18n="fontArial">Arial</option>
+                          <option value="Tahoma, sans-serif" data-i18n="fontTahoma">Tahoma</option>
+                          <option value="Verdana, sans-serif" data-i18n="fontVerdana">Verdana</option>
+                          <option value="'Trebuchet MS', sans-serif" data-i18n="fontTrebuchetMS">Trebuchet MS</option>
+                          <option value="'Impact', sans-serif" data-i18n="fontImpact">Impact (굵은 자막)</option>
+                          <option value="'Comic Sans MS', cursive" data-i18n="fontComicSansMS">Comic Sans MS</option>
+                          <option value="Georgia, serif" data-i18n="fontGeorgia">Georgia</option>
+                          <option value="'Times New Roman', serif" data-i18n="fontTimesNewRoman">Times New Roman</option>
+                          <option value="'Consolas', monospace" data-i18n="fontConsolas">Consolas</option>
+                          <option value="'Courier New', monospace" data-i18n="fontCourierNew">Courier New</option>
+                        </optgroup>
+                      </select>
+                      <button type="button" class="btn btn-tiny btn-scan-fonts" id="btnScanLocalFonts" data-i18n-title="tipScanLocalFonts" title="내 PC에 설치된 모든 폰트 불러오기">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                          <line x1="8" y1="21" x2="16" y2="21"></line>
+                          <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                      </button>
+                      <input type="number" id="inputObjFontSize" class="input-text-size" min="10" max="150" value="28" title="폰트 크기" />
+                      <div class="obj-smart-chip-wrap" id="wrapTextFillChip" data-i18n-title="tipFillColor" title="글자 색상">
+                        <input type="color" id="inputTextFillColor" value="#ffffff" />
+                        <div class="obj-chip-preview" id="chipTextFillColor" style="background-color: #ffffff;"></div>
                       </div>
                     </div>
-                    <button type="button" class="btn-chip-clear hidden" id="btnObjFillClear" data-i18n-title="tipFillNone" title="채우기 없음 (투명)" aria-label="채우기 없음">
-                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
+
+                    <!-- Row 2: B / I / Alignments -->
+                    <div class="text-style-row">
+                      <div class="btn-group-tiny">
+                        <button id="btnObjBold" class="btn btn-tiny active" data-i18n-title="tipObjBold" title="굵게 (Bold)"><b>B</b></button>
+                        <button id="btnTextItalic" class="btn btn-tiny" data-i18n-title="tipTextItalic" title="기울임 (Italic)"><i>I</i></button>
+                      </div>
+                      <div class="btn-group-tiny text-align-group">
+                        <button id="btnTextAlignLeft" class="btn btn-tiny" data-i18n-title="tipTextAlignLeft" title="왼쪽 정렬">
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="17" y1="10" x2="3" y2="10"></line>
+                            <line x1="21" y1="6" x2="3" y2="6"></line>
+                            <line x1="21" y1="14" x2="3" y2="14"></line>
+                            <line x1="17" y1="18" x2="3" y2="18"></line>
+                          </svg>
+                        </button>
+                        <button id="btnTextAlignCenter" class="btn btn-tiny active" data-i18n-title="tipTextAlignCenter" title="가운데 정렬">
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="10" x2="6" y2="10"></line>
+                            <line x1="21" y1="6" x2="3" y2="6"></line>
+                            <line x1="21" y1="14" x2="3" y2="14"></line>
+                            <line x1="18" y1="18" x2="6" y2="18"></line>
+                          </svg>
+                        </button>
+                        <button id="btnTextAlignRight" class="btn btn-tiny" data-i18n-title="tipTextAlignRight" title="오른쪽 정렬">
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="21" y1="10" x2="7" y2="10"></line>
+                            <line x1="21" y1="6" x2="3" y2="6"></line>
+                            <line x1="21" y1="14" x2="3" y2="14"></line>
+                            <line x1="21" y1="18" x2="7" y2="18"></line>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Row 3: Text Opacity -->
+                    <div class="slider-item compact-slider">
+                      <div class="slider-label">
+                        <span data-i18n="labelOpacity">불투명도</span>
+                        <span class="slider-value" id="valTextOpacity">100%</span>
+                      </div>
+                      <input type="range" id="rangeTextOpacity" min="10" max="100" value="100" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Stroke Width Slider -->
-              <div class="slider-item" id="groupStrokeWidth">
-                <div class="slider-label">
-                  <span data-i18n="labelStrokeWidth">선 굵기</span>
-                  <span class="slider-value" id="valObjStrokeWidth">4px</span>
-                </div>
-                <input type="range" id="rangeObjStrokeWidth" min="1" max="40" value="4" />
-              </div>
-
-              <!-- Opacity Slider -->
-              <div class="slider-item" id="groupOpacity">
-                <div class="slider-label">
-                  <span data-i18n="labelOpacity">불투명도</span>
-                  <span class="slider-value" id="valObjOpacity">100%</span>
-                </div>
-                <input type="range" id="rangeObjOpacity" min="10" max="100" value="100" />
-              </div>
-
-              <!-- Border Radius Slider (Rect only) -->
-              <div class="slider-item hidden" id="groupBorderRadius">
-                <div class="slider-label">
-                  <span data-i18n="labelBorderRadius">모서리 둥글기</span>
-                  <span class="slider-value" id="valObjRadius">8px</span>
-                </div>
-                <input type="range" id="rangeObjRadius" min="0" max="80" value="8" />
-              </div>
-
-              <!-- Text Options Row (Text only) -->
-              <div class="obj-text-options hidden" id="groupTextOptions">
-                <div class="obj-prop-row">
-                  <div class="obj-prop-col">
-                    <span class="input-mini-label" data-i18n="labelFontSize">폰트 크기</span>
-                    <input type="number" id="inputObjFontSize" class="input-number" min="12" max="150" value="28" style="width: 70px" />
+                <!-- Tier 2: 외곽선 (Outline/Stroke) -->
+                <div class="text-group-card" id="cardTextStroke">
+                  <div class="text-group-header">
+                    <label class="checkbox-label text-sec-toggle">
+                      <input type="checkbox" id="chkTextStroke" checked />
+                      <span data-i18n="textSecStroke">외곽선</span>
+                    </label>
+                    <div class="obj-smart-chip-wrap" id="wrapTextStrokeChip" data-i18n-title="tipStrokeColor" title="외곽선 색상">
+                      <input type="color" id="inputTextStrokeColor" value="#38bdf8" />
+                      <div class="obj-chip-preview" id="chipTextStrokeColor" style="background-color: #38bdf8;"></div>
+                    </div>
                   </div>
-                  <div class="obj-prop-col">
-                    <span class="input-mini-label" data-i18n="labelTextStyle">스타일 (중복 가능)</span>
-                    <div class="btn-group-tiny">
-                      <button id="btnObjBold" class="btn btn-tiny active" data-i18n-title="tipObjBold" title="굵게 (Bold) - 다중 선택 가능"><b>B</b></button>
-                      <button id="btnObjShadow" class="btn btn-tiny active btn-shadow-style" data-i18n-title="tipObjShadow" title="가독성 외곽선 그림자 (Shadow) - 다중 선택 가능"><span class="shadow-s-glyph">S</span></button>
+                  <div class="text-group-body" id="bodyTextStroke">
+                    <!-- Stroke Width -->
+                    <div class="slider-item compact-slider">
+                      <div class="slider-label">
+                        <span data-i18n="labelStrokeWidth">선 굵기</span>
+                        <span class="slider-value" id="valTextStrokeWidth">3px</span>
+                      </div>
+                      <input type="range" id="rangeTextStrokeWidth" min="1" max="24" value="3" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tier 3: 그림자 (Shadow) -->
+                <div class="text-group-card" id="cardTextShadow">
+                  <div class="text-group-header">
+                    <label class="checkbox-label text-sec-toggle">
+                      <input type="checkbox" id="chkTextShadow" checked />
+                      <span data-i18n="textSecShadow">그림자</span>
+                    </label>
+                    <div class="obj-smart-chip-wrap" id="wrapTextShadowChip" data-i18n-title="tipObjShadow" title="그림자 색상">
+                      <input type="color" id="inputTextShadowColor" value="#000000" />
+                      <div class="obj-chip-preview" id="chipTextShadowColor" style="background-color: #000000;"></div>
+                    </div>
+                  </div>
+                  <div class="text-group-body" id="bodyTextShadow">
+                    <!-- Blur -->
+                    <div class="slider-item compact-slider">
+                      <div class="slider-label">
+                        <span data-i18n="labelShadowBlur">흐림</span>
+                        <span class="slider-value" id="valTextShadowBlur">4px</span>
+                      </div>
+                      <input type="range" id="rangeTextShadowBlur" min="0" max="20" value="4" />
+                    </div>
+                    <!-- Offset -->
+                    <div class="slider-item compact-slider">
+                      <div class="slider-label">
+                        <span data-i18n="labelShadowOffset">거리</span>
+                        <span class="slider-value" id="valTextShadowOffset">2px</span>
+                      </div>
+                      <input type="range" id="rangeTextShadowOffset" min="0" max="20" value="2" />
                     </div>
                   </div>
                 </div>
@@ -531,6 +694,13 @@
                 </svg>
                 <span data-i18n="btnDuplicate">복제</span>
               </button>
+              <button id="btnObjDelete" class="btn btn-tiny btn-danger" disabled data-i18n-title="btnDeleteTitle" title="삭제 (Del)">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span data-i18n="btnDelete">삭제</span>
+              </button>
               <button id="btnObjBringForward" class="btn btn-tiny btn-outline" disabled data-i18n-title="btnForwardTitle" title="앞으로 가져오기">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="18 15 12 9 6 15"></polyline>
@@ -542,13 +712,6 @@
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
                 <span data-i18n="btnBackward">뒤로</span>
-              </button>
-              <button id="btnObjDelete" class="btn btn-tiny btn-danger" disabled data-i18n-title="btnDeleteTitle" title="삭제 (Del)">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                <span data-i18n="btnDelete">삭제</span>
               </button>
             </div>
           </div>
