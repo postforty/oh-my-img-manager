@@ -224,6 +224,133 @@ function warpPerspective(srcMat, corners) {
 }
 
 /**
+ * Applies Photoshop-style 8-Point Curved Quad Warp (Coons Patch Transfinite Interpolation)
+ * Straightens distorted books using 4 corners + 4 edge curve control handles.
+ */
+function warpCurvedQuad(srcMat, corners, curveHandles) {
+  const [tl, tr, br, bl] = corners;
+
+  // Midpoints / Handles
+  const tc = curveHandles && curveHandles.tc ? curveHandles.tc : { x: (tl.x + tr.x) / 2, y: (tl.y + tr.y) / 2 };
+  const rc = curveHandles && curveHandles.rc ? curveHandles.rc : { x: (tr.x + br.x) / 2, y: (tr.y + br.y) / 2 };
+  const bc = curveHandles && curveHandles.bc ? curveHandles.bc : { x: (bl.x + br.x) / 2, y: (bl.y + br.y) / 2 };
+  const lc = curveHandles && curveHandles.lc ? curveHandles.lc : { x: (tl.x + bl.x) / 2, y: (tl.y + bl.y) / 2 };
+
+  // Calculate destination dimensions
+  const widthTop = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const widthBottom = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const maxWidth = Math.max(100, Math.round(Math.max(widthTop, widthBottom)));
+
+  const heightLeft = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const heightRight = Math.hypot(br.x - tr.x, br.y - tr.y);
+  const maxHeight = Math.max(100, Math.round(Math.max(heightLeft, heightRight)));
+
+  // Quadratic Bezier control points such that curve passes through handles at t=0.5
+  const ctrlTop = {
+    x: 2 * tc.x - 0.5 * (tl.x + tr.x),
+    y: 2 * tc.y - 0.5 * (tl.y + tr.y)
+  };
+  const ctrlBottom = {
+    x: 2 * bc.x - 0.5 * (bl.x + br.x),
+    y: 2 * bc.y - 0.5 * (bl.y + br.y)
+  };
+  const ctrlLeft = {
+    x: 2 * lc.x - 0.5 * (tl.x + bl.x),
+    y: 2 * lc.y - 0.5 * (tl.y + bl.y)
+  };
+  const ctrlRight = {
+    x: 2 * rc.x - 0.5 * (tr.x + br.x),
+    y: 2 * rc.y - 0.5 * (tr.y + br.y)
+  };
+
+  const mapX = new cv.Mat(maxHeight, maxWidth, cv.CV_32FC1);
+  const mapY = new cv.Mat(maxHeight, maxWidth, cv.CV_32FC1);
+  const mXData = mapX.data32F;
+  const mYData = mapY.data32F;
+
+  // Precompute top and bottom curve points for each column x
+  const topX = new Float32Array(maxWidth);
+  const topY = new Float32Array(maxWidth);
+  const botX = new Float32Array(maxWidth);
+  const botY = new Float32Array(maxWidth);
+
+  for (let x = 0; x < maxWidth; x++) {
+    const u = x / (maxWidth - 1);
+    const u1 = 1 - u;
+    const b0 = u1 * u1;
+    const b1 = 2 * u1 * u;
+    const b2 = u * u;
+
+    topX[x] = b0 * tl.x + b1 * ctrlTop.x + b2 * tr.x;
+    topY[x] = b0 * tl.y + b1 * ctrlTop.y + b2 * tr.y;
+
+    botX[x] = b0 * bl.x + b1 * ctrlBottom.x + b2 * br.x;
+    botY[x] = b0 * bl.y + b1 * ctrlBottom.y + b2 * br.y;
+  }
+
+  // Precompute left and right curve points for each row y
+  const leftX = new Float32Array(maxHeight);
+  const leftY = new Float32Array(maxHeight);
+  const rightX = new Float32Array(maxHeight);
+  const rightY = new Float32Array(maxHeight);
+
+  for (let y = 0; y < maxHeight; y++) {
+    const v = y / (maxHeight - 1);
+    const v1 = 1 - v;
+    const b0 = v1 * v1;
+    const b1 = 2 * v1 * v;
+    const b2 = v * v;
+
+    leftX[y] = b0 * tl.x + b1 * ctrlLeft.x + b2 * bl.x;
+    leftY[y] = b0 * tl.y + b1 * ctrlLeft.y + b2 * bl.y;
+
+    rightX[y] = b0 * tr.x + b1 * ctrlRight.x + b2 * br.x;
+    rightY[y] = b0 * tr.y + b1 * ctrlRight.y + b2 * br.y;
+  }
+
+  // Coons Patch Evaluation for all pixels (x, y)
+  for (let y = 0; y < maxHeight; y++) {
+    const v = y / (maxHeight - 1);
+    const v1 = 1 - v;
+    const rowOffset = y * maxWidth;
+
+    const lx = leftX[y];
+    const ly = leftY[y];
+    const rx = rightX[y];
+    const ry = rightY[y];
+
+    for (let x = 0; x < maxWidth; x++) {
+      const u = x / (maxWidth - 1);
+      const u1 = 1 - u;
+
+      const tx = topX[x];
+      const ty = topY[x];
+      const bx = botX[x];
+      const by = botY[x];
+
+      const cx = u1 * v1 * tl.x + u * v1 * tr.x + u * v * br.x + u1 * v * bl.x;
+      const cy = u1 * v1 * tl.y + u * v1 * tr.y + u * v * br.y + u1 * v * bl.y;
+
+      const px = v1 * tx + v * bx + u1 * lx + u * rx - cx;
+      const py = v1 * ty + v * by + u1 * ly + u * ry - cy;
+
+      const idx = rowOffset + x;
+      mXData[idx] = px;
+      mYData[idx] = py;
+    }
+  }
+
+  let warped = new cv.Mat();
+  try {
+    cv.remap(srcMat, warped, mapX, mapY, cv.INTER_LINEAR, cv.BORDER_REPLICATE);
+    return warped;
+  } finally {
+    mapX.delete();
+    mapY.delete();
+  }
+}
+
+/**
  * Illumination Correction & Shadow Removal via Morphological Background Division
  * and contrast enhancement / sharpening.
  */
@@ -421,16 +548,17 @@ function inpaintMarginFingers(mat) {
  * 3D Geometric Curve Dewarping using Text Baseline Detection & Remap
  * Straightens lines curved by book binding / page curl.
  */
-function dewarpTextCurves(srcMat) {
+function dewarpTextCurves(srcMat, strength = 1.0) {
   const w = srcMat.cols;
   const h = srcMat.rows;
-  if (w < 120 || h < 120) return null;
+  if (w < 150 || h < 150 || strength <= 0) return null;
 
   let small = null;
   let gray = null;
   let thresh = null;
   let kernel = null;
   let connected = null;
+  let borderMask = null;
   let contours = null;
   let hierarchy = null;
   let mapX = null;
@@ -438,10 +566,10 @@ function dewarpTextCurves(srcMat) {
   let dst = null;
 
   try {
-    const maxDim = 800;
-    const scale = Math.min(1.0, maxDim / Math.max(w, h));
-    const sw = Math.round(w * scale);
-    const sh = Math.round(h * scale);
+    const targetW = 600;
+    const scale = targetW / w;
+    const sw = targetW;
+    const sh = Math.max(100, Math.round(h * scale));
 
     small = new cv.Mat();
     cv.resize(srcMat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
@@ -449,10 +577,34 @@ function dewarpTextCurves(srcMat) {
     gray = new cv.Mat();
     cv.cvtColor(small, gray, cv.COLOR_RGBA2GRAY);
 
+    // Detect spine gutter side (darker edge has the book spine)
+    let leftDarkSum = 0, rightDarkSum = 0;
+    const sampleW = Math.round(sw * 0.12);
+    for (let y = 0; y < sh; y += 4) {
+      for (let x = 0; x < sampleW; x += 2) {
+        leftDarkSum += gray.ucharPtr(y, x)[0];
+      }
+      for (let x = sw - sampleW; x < sw; x += 2) {
+        rightDarkSum += gray.ucharPtr(y, x)[0];
+      }
+    }
+    const isSpineOnRight = rightDarkSum <= leftDarkSum; // Usually true for Page 1 (Left page)
+
     thresh = new cv.Mat();
     cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 8);
 
-    const kWidth = Math.max(15, Math.round(sw * 0.04));
+    // Clear 4% outer margins to remove dark frame/shadows that ruin contour detection
+    const marginX = Math.round(sw * 0.04);
+    const marginY = Math.round(sh * 0.03);
+    borderMask = cv.Mat.zeros(sh, sw, cv.CV_8U);
+    let innerRect = new cv.Rect(marginX, marginY, sw - 2 * marginX, sh - 2 * marginY);
+    let innerRoi = borderMask.roi(innerRect);
+    innerRoi.setTo(new cv.Scalar(255));
+    innerRoi.delete();
+    cv.bitwise_and(thresh, borderMask, thresh);
+
+    // Merge adjacent text characters into horizontal text line bands (48px wide kernel)
+    const kWidth = Math.max(28, Math.round(sw * 0.08));
     kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kWidth, 3));
     connected = new cv.Mat();
     cv.morphologyEx(thresh, connected, cv.MORPH_CLOSE, kernel);
@@ -461,107 +613,155 @@ function dewarpTextCurves(srcMat) {
     hierarchy = new cv.Mat();
     cv.findContours(connected, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    const minLineWidth = sw * 0.18;
-    const maxLineHeight = sh * 0.12;
-    const lineDeviations = [];
+    const minLineWidth = Math.round(sw * 0.12); // At least 12% page width (72px)
+    const maxLineHeight = Math.round(sh * 0.10); // At most 10% height
+    const numBins = 40;
+    const binDeviations = Array.from({ length: numBins }, () => []);
 
     for (let i = 0; i < contours.size(); i++) {
       const cnt = contours.get(i);
       const rect = cv.boundingRect(cnt);
+      cnt.delete();
 
-      if (rect.width >= minLineWidth && rect.height <= maxLineHeight && (rect.width / rect.height) >= 3) {
-        const xStart = rect.x;
-        const xEnd = rect.x + rect.width;
+      if (rect.width >= minLineWidth && rect.height <= maxLineHeight && (rect.width / rect.height) >= 2.0) {
         const pts = [];
-        const count = cnt.rows;
-        const step = Math.max(4, Math.round(rect.width / 40));
+        const stepX = Math.max(3, Math.round(rect.width / 25));
 
-        for (let targetX = xStart + 5; targetX <= xEnd - 5; targetX += step) {
-          let minY = Infinity, maxY = -Infinity;
-          for (let j = 0; j < count; j++) {
-            const px = cnt.data32S[j * 2];
-            const py = cnt.data32S[j * 2 + 1];
-            if (Math.abs(px - targetX) <= 2) {
-              if (py < minY) minY = py;
-              if (py > maxY) maxY = py;
+        for (let targetX = rect.x + 3; targetX <= rect.x + rect.width - 3; targetX += stepX) {
+          let sumY = 0, countY = 0;
+          for (let y = rect.y; y < rect.y + rect.height; y++) {
+            if (connected.ucharPtr(y, targetX)[0] > 0) {
+              sumY += y;
+              countY++;
             }
           }
-          if (minY !== Infinity) {
-            pts.push({ x: targetX, y: (minY + maxY) / 2 });
+          if (countY > 0) {
+            pts.push({ x: targetX, y: sumY / countY });
           }
         }
 
-        if (pts.length >= 6) {
+        if (pts.length >= 4) {
           const pStart = pts[0];
           const pEnd = pts[pts.length - 1];
           const dx = pEnd.x - pStart.x;
-          if (dx > 0) {
+          if (dx > 15) {
+            // Reference baseline is the flat side of the page (NOT a slanted diagonal line!)
+            // Left page: flat side is left (pStart.y). Right page: flat side is right (pEnd.y).
+            const refY = isSpineOnRight ? pStart.y : pEnd.y;
             for (const p of pts) {
-              const expectedY = pStart.y + ((pEnd.y - pStart.y) / dx) * (p.x - pStart.x);
-              lineDeviations.push({ x: p.x, d: p.y - expectedY });
+              const dev = p.y - refY; // < 0 when text curls upwards near spine
+              const binIdx = Math.max(0, Math.min(numBins - 1, Math.floor((p.x / sw) * numBins)));
+              binDeviations[binIdx].push(dev);
             }
           }
         }
       }
-      cnt.delete();
     }
 
-    if (lineDeviations.length < 20) {
-      return null;
+    // Compute median deviation for each horizontal bin
+    const smoothed = new Float32Array(numBins);
+    let validBins = 0;
+    for (let b = 0; b < numBins; b++) {
+      const devs = binDeviations[b];
+      if (devs.length > 0) {
+        devs.sort((a, b) => a - b);
+        smoothed[b] = devs[Math.floor(devs.length / 2)]; // Median
+        validBins++;
+      } else {
+        smoothed[b] = NaN;
+      }
     }
 
-    let s4 = 0, s3 = 0, s2 = 0, s1 = 0, s0 = 0;
-    let t2 = 0, t1 = 0, t0 = 0;
-
-    for (const pt of lineDeviations) {
-      const u = pt.x / sw;
-      const d = pt.d;
-      const u2 = u * u;
-      s4 += u2 * u2;
-      s3 += u2 * u;
-      s2 += u2;
-      s1 += u;
-      s0 += 1;
-
-      t2 += u2 * d;
-      t1 += u * d;
-      t0 += d;
+    // Parametric book spine curl model (Flat body + single monotonic upward curl toward spine)
+    const baseSpineAmp = (sh * 0.04);
+    const parametricCurve = new Float32Array(numBins);
+    for (let b = 0; b < numBins; b++) {
+      const uNorm = b / (numBins - 1);
+      if (isSpineOnRight) {
+        // Flat on left (0 .. 0.5), curls upward (negative shift) near right spine
+        const t = Math.max(0, (uNorm - 0.48) / 0.52);
+        parametricCurve[b] = -baseSpineAmp * Math.pow(t, 2.0);
+      } else {
+        // Curls upward (negative shift) near left spine, flat on right (0.5 .. 1.0)
+        const t = Math.max(0, ((1 - uNorm) - 0.48) / 0.52);
+        parametricCurve[b] = -baseSpineAmp * Math.pow(t, 2.0);
+      }
     }
 
-    const det3 = (m) => (
-      m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
-      m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
-      m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
-    );
+    if (validBins >= 6) {
+      // Fill missing bins
+      let lastValidIdx = -1;
+      for (let b = 0; b < numBins; b++) {
+        if (!isNaN(smoothed[b])) {
+          if (lastValidIdx === -1) {
+            for (let k = 0; k < b; k++) smoothed[k] = smoothed[b];
+          } else if (b - lastValidIdx > 1) {
+            const v0 = smoothed[lastValidIdx];
+            const v1 = smoothed[b];
+            for (let k = lastValidIdx + 1; k < b; k++) {
+              const t = (k - lastValidIdx) / (b - lastValidIdx);
+              smoothed[k] = v0 + (v1 - v0) * t;
+            }
+          }
+          lastValidIdx = b;
+        }
+      }
+      if (lastValidIdx !== -1 && lastValidIdx < numBins - 1) {
+        for (let k = lastValidIdx + 1; k < numBins; k++) {
+          smoothed[k] = smoothed[lastValidIdx];
+        }
+      }
 
-    const M = [[s4, s3, s2], [s3, s2, s1], [s2, s1, s0]];
-    const D = det3(M);
-    if (Math.abs(D) < 1e-7) return null;
+      // Smooth with moving average [0.25, 0.5, 0.25]
+      for (let b = 0; b < numBins; b++) {
+        const prev = b > 0 ? smoothed[b - 1] : smoothed[b];
+        const curr = smoothed[b];
+        const next = b < numBins - 1 ? smoothed[b + 1] : smoothed[b];
+        smoothed[b] = 0.25 * prev + 0.5 * curr + 0.25 * next;
+      }
 
-    const Ma = [[t2, s3, s2], [t1, s2, s1], [t0, s1, s0]];
-    const Mb = [[s4, t2, s2], [s3, t1, s1], [s2, t0, s0]];
-    const Mc = [[s4, s3, t2], [s3, s2, t1], [s2, s1, t0]];
-
-    const polyA = det3(Ma) / D;
-    const polyB = det3(Mb) / D;
-    const polyC = det3(Mc) / D;
-
-    if (Math.abs(polyA) < 1.0) {
-      return null;
+      // Enforce physical monotonicity:
+      // Flat side MUST stay flat (dev <= 0 only; positive values mean downward dip noise and must be zeroed!)
+      if (isSpineOnRight) {
+        const flatLimit = Math.round(numBins * 0.45);
+        for (let b = 0; b <= flatLimit; b++) {
+          smoothed[b] = 0;
+        }
+        let runningMin = 0;
+        for (let b = flatLimit + 1; b < numBins; b++) {
+          if (smoothed[b] < runningMin) runningMin = smoothed[b];
+          smoothed[b] = runningMin; // Monotonically curl upwards toward spine
+        }
+      } else {
+        const flatStart = Math.round(numBins * 0.55);
+        for (let b = flatStart; b < numBins; b++) {
+          smoothed[b] = 0;
+        }
+        let runningMin = 0;
+        for (let b = flatStart - 1; b >= 0; b--) {
+          if (smoothed[b] < runningMin) runningMin = smoothed[b];
+          smoothed[b] = runningMin;
+        }
+      }
+    } else {
+      // Use parametric model if text lines are sparse
+      for (let b = 0; b < numBins; b++) {
+        smoothed[b] = parametricCurve[b];
+      }
     }
 
-    const maxShiftAllowed = h * 0.08;
+    // Build shifts array for full resolution width w
     const shifts = new Float32Array(w);
-
-    const curveAt0 = polyC / scale;
-    const curveAt1 = (polyA + polyB + polyC) / scale;
+    const maxShiftAllowed = h * 0.15; // Allow up to 15% height adjustment
+    const invScale = 1.0 / scale;
 
     for (let x = 0; x < w; x++) {
-      const u = x / w;
-      const dSmall = polyA * u * u + polyB * u + polyC;
-      const dFull = dSmall / scale;
-      const baseline = curveAt0 + (curveAt1 - curveAt0) * u;
-      let shiftY = dFull - baseline;
+      const u = (x / w) * (numBins - 1);
+      const b0 = Math.floor(u);
+      const b1 = Math.min(numBins - 1, b0 + 1);
+      const t = u - b0;
+      const dSmall = smoothed[b0] * (1 - t) + smoothed[b1] * t;
+      let shiftY = dSmall * invScale * strength;
 
       if (shiftY > maxShiftAllowed) shiftY = maxShiftAllowed;
       else if (shiftY < -maxShiftAllowed) shiftY = -maxShiftAllowed;
@@ -586,6 +786,7 @@ function dewarpTextCurves(srcMat) {
 
     dst = new cv.Mat();
     cv.remap(srcMat, dst, mapX, mapY, cv.INTER_LINEAR, cv.BORDER_REPLICATE);
+    console.log(`[Dewarp] Dewarp applied successfully with strength=${strength}`);
     return dst;
   } catch (err) {
     console.warn("Dewarping bypassed due to error:", err);
@@ -594,6 +795,7 @@ function dewarpTextCurves(srcMat) {
     if (small) small.delete();
     if (gray) gray.delete();
     if (thresh) thresh.delete();
+    if (borderMask) borderMask.delete();
     if (kernel) kernel.delete();
     if (connected) connected.delete();
     if (contours) contours.delete();
@@ -604,19 +806,19 @@ function dewarpTextCurves(srcMat) {
 }
 
 /**
- * Optional: Detects central vertical gutter in double page spreads and splits image
+ * Detects central vertical gutter in double page spreads and splits image
  */
 function splitDoublePageSpread(mat) {
   const w = mat.cols;
   const h = mat.rows;
-  if (w < h * 1.1) return null; // Not a wide landscape spread
 
   let gray = new cv.Mat();
   try {
     cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY);
 
-    const minX = Math.round(w * 0.42);
-    const maxX = Math.round(w * 0.58);
+    // Scan central 35% ~ 65% for the vertical binding gutter shadow
+    const minX = Math.round(w * 0.35);
+    const maxX = Math.round(w * 0.65);
 
     let minSum = Infinity;
     let splitX = Math.round(w * 0.5);
@@ -668,16 +870,19 @@ self.onmessage = async (e) => {
     }
 
     if (action === "PROCESS_IMAGE") {
-      const { imageData, corners, options } = payload;
+      const { imageData, corners, curveHandles, options } = payload;
       const srcMat = imageDataToMat(imageData);
       let warpedMat = null;
       let fingerMat = null;
-      let dewarpedMat = null;
       let enhancedMat = null;
 
       try {
-        // Step 1: Perspective Warp
-        warpedMat = warpPerspective(srcMat, corners);
+        // Step 1: 8-Point Curved Quad Warp (Photoshop style)
+        if (curveHandles) {
+          warpedMat = warpCurvedQuad(srcMat, corners, curveHandles);
+        } else {
+          warpedMat = warpPerspective(srcMat, corners);
+        }
 
         // Step 2: Finger Inpainting (Optional)
         if (options && options.removeFingers) {
@@ -685,15 +890,9 @@ self.onmessage = async (e) => {
         }
         const postFingerMat = fingerMat || warpedMat;
 
-        // Step 2.5: Text Curve Dewarping (Optional)
-        if (options && options.dewarpCurves) {
-          dewarpedMat = dewarpTextCurves(postFingerMat);
-        }
-        const activeMat = dewarpedMat || postFingerMat;
-
         // Step 3: Double Page Split (Optional)
         if (options && options.isDoublePage) {
-          const split = splitDoublePageSpread(activeMat);
+          const split = splitDoublePageSpread(postFingerMat);
           if (split) {
             const enhLeft = enhanceDocument(split.leftMat, options);
             const enhRight = enhanceDocument(split.rightMat, options);
@@ -722,7 +921,7 @@ self.onmessage = async (e) => {
         }
 
         // Step 4: Shadow Removal & Enhancement
-        enhancedMat = enhanceDocument(activeMat, options);
+        enhancedMat = enhanceDocument(postFingerMat, options);
         const outData = matToImageData(enhancedMat);
 
         self.postMessage(
@@ -740,7 +939,6 @@ self.onmessage = async (e) => {
         srcMat.delete();
         if (warpedMat) warpedMat.delete();
         if (fingerMat) fingerMat.delete();
-        if (dewarpedMat) dewarpedMat.delete();
         if (enhancedMat) enhancedMat.delete();
       }
       return;
@@ -749,10 +947,18 @@ self.onmessage = async (e) => {
     if (action === "ENHANCE_FULL_IMAGE") {
       const { imageData, options } = payload;
       const srcMat = imageDataToMat(imageData);
+      let currentMat = srcMat;
+      let dewarpedMat = null;
       let enhancedMat = null;
 
       try {
-        enhancedMat = enhanceDocument(srcMat, options);
+        const dewarpStrength = (options && options.dewarpStrength !== undefined) ? options.dewarpStrength : 1.0;
+        if (options && options.dewarpCurves && dewarpStrength > 0) {
+          dewarpedMat = dewarpTextCurves(srcMat, dewarpStrength);
+          if (dewarpedMat) currentMat = dewarpedMat;
+        }
+
+        enhancedMat = enhanceDocument(currentMat, options);
         const outData = matToImageData(enhancedMat);
 
         self.postMessage(
@@ -767,7 +973,51 @@ self.onmessage = async (e) => {
         );
       } finally {
         srcMat.delete();
+        if (dewarpedMat) dewarpedMat.delete();
         if (enhancedMat) enhancedMat.delete();
+      }
+      return;
+    }
+
+    if (action === "SPLIT_SPREAD") {
+      const { imageData } = payload;
+      const srcMat = imageDataToMat(imageData);
+      let splitResult = null;
+
+      try {
+        splitResult = splitDoublePageSpread(srcMat);
+        if (!splitResult) {
+          const w = srcMat.cols;
+          const h = srcMat.rows;
+          const splitX = Math.round(w / 2);
+          const rectLeft = new cv.Rect(0, 0, splitX, h);
+          const rectRight = new cv.Rect(splitX, 0, w - splitX, h);
+          const leftMat = srcMat.roi(rectLeft).clone();
+          const rightMat = srcMat.roi(rectRight).clone();
+          splitResult = { leftMat, rightMat, splitX };
+        }
+
+        const leftData = matToImageData(splitResult.leftMat);
+        const rightData = matToImageData(splitResult.rightMat);
+
+        self.postMessage(
+          {
+            id,
+            status: "SUCCESS",
+            result: {
+              leftData,
+              rightData,
+              splitX: splitResult.splitX
+            }
+          },
+          [leftData.data.buffer, rightData.data.buffer]
+        );
+      } finally {
+        srcMat.delete();
+        if (splitResult) {
+          splitResult.leftMat.delete();
+          splitResult.rightMat.delete();
+        }
       }
       return;
     }

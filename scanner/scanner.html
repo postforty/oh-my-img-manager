@@ -134,6 +134,14 @@
               </div>
               <input type="range" id="sliderSharpen" min="0.0" max="2.5" step="0.1" value="1.2" class="custom-range" />
             </div>
+
+            <div class="slider-item">
+              <div class="slider-header">
+                <label for="sliderDewarp">글자 굴곡 평탄화 강도</label>
+                <span class="slider-val" id="valDewarp">100%</span>
+              </div>
+              <input type="range" id="sliderDewarp" min="0" max="200" step="5" value="100" class="custom-range" />
+            </div>
           </div>
         </section>
 
@@ -164,6 +172,13 @@
               </svg>
               <span>모서리 자동 재감지</span>
             </button>
+            <button id="btnSplitSpread" class="btn btn-secondary btn-util" title="펼친 양면 책 사진을 왼쪽/오른쪽 2장으로 분할">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <line x1="12" y1="4" x2="12" y2="20" stroke-dasharray="2 2"></line>
+              </svg>
+              <span>펼친 양면 2장 분할</span>
+            </button>
           </div>
 
           <!-- Toggles -->
@@ -174,15 +189,6 @@
               <span class="toggle-label">
                 <strong>텍스트 굴곡 평탄화 (Curve Dewarp)</strong>
                 <small>책 펼침 굴곡으로 인해 휘어진 글자 줄을 수평으로 펴기</small>
-              </span>
-            </label>
-
-            <label class="toggle-item">
-              <input type="checkbox" id="chkDoublePage" />
-              <span class="toggle-switch"></span>
-              <span class="toggle-label">
-                <strong>양면 페이지 분할</strong>
-                <small>펼친 책 사진의 가운데 골짜기 탐지 후 2장으로 분리</small>
               </span>
             </label>
 
@@ -244,8 +250,17 @@
         <!-- Viewport Toolbar -->
         <div class="viewport-header">
           <div class="viewport-status-info">
-            <span class="editor-mode-badge">스캔 에디터</span>
-            <span class="crop-hint-text">핀 안쪽이 크롭 영역이며, 바깥 어두운 영역은 저장 시 잘려나갑니다</span>
+            <div class="view-mode-tabs" id="viewModeTabs">
+              <button id="tabModeCrop" class="view-tab-btn active" title="8포인트 모서리 및 곡률 영역 조절">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
+                <span>📐 영역 조절</span>
+              </button>
+              <button id="tabModePreview" class="view-tab-btn" title="뒤틀기가 적용되어 반듯하게 펴진 고화질 스캔본 미리보기">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span>📄 펴진 결과 보기</span>
+              </button>
+            </div>
+            <span class="crop-hint-text" id="viewportHintText">💡 핸들로 휜 테두리를 맞춘 후 <strong>[펴진 결과 보기]</strong>로 확인하세요</span>
           </div>
 
           <div class="zoom-controls">
@@ -304,30 +319,42 @@
 
               <!-- SVG Interactive Corner Overlay -->
               <svg id="cornerSvgOverlay" class="corner-svg-overlay" preserveAspectRatio="none">
-                <!-- Dark scrim covering outside of cropped area -->
+                <!-- Dark scrim covering outside of cropped curved area -->
                 <path id="cropScrimPath" class="crop-scrim" fill-rule="evenodd" d=""></path>
-                <!-- Polygon fill and border -->
-                <polygon id="cornerPolygon" class="corner-poly" points=""></polygon>
-                <!-- Connecting lines -->
-                <line id="lineTLTR" class="corner-line"></line>
-                <line id="lineTRBR" class="corner-line"></line>
-                <line id="lineBRBL" class="corner-line"></line>
-                <line id="lineBLTL" class="corner-line"></line>
+                <!-- 4 Curved Edge Lines (Bezier) -->
+                <path id="edgeTop" class="corner-line"></path>
+                <path id="edgeRight" class="corner-line"></path>
+                <path id="edgeBottom" class="corner-line"></path>
+                <path id="edgeLeft" class="corner-line"></path>
               </svg>
 
-              <!-- 4 Draggable Pin Handles -->
+              <!-- 8 Draggable Handles: 4 Corner Pins + 4 Edge Curve Warp Handles -->
               <div class="corner-pins-wrap" id="cornerPinsWrap">
-                <div class="corner-pin" id="pinTL" data-corner="0" title="좌측 상단 모서리">
+                <div class="corner-pin" id="pinTL" data-point="tl" title="좌측 상단 모서리">
                   <span class="pin-badge">TL</span>
                 </div>
-                <div class="corner-pin" id="pinTR" data-corner="1" title="우측 상단 모서리">
+                <div class="corner-pin" id="pinTR" data-point="tr" title="우측 상단 모서리">
                   <span class="pin-badge">TR</span>
                 </div>
-                <div class="corner-pin" id="pinBR" data-corner="2" title="우측 하단 모서리">
+                <div class="corner-pin" id="pinBR" data-point="br" title="우측 하단 모서리">
                   <span class="pin-badge">BR</span>
                 </div>
-                <div class="corner-pin" id="pinBL" data-corner="3" title="좌측 하단 모서리">
+                <div class="corner-pin" id="pinBL" data-point="bl" title="좌측 하단 모서리">
                   <span class="pin-badge">BL</span>
+                </div>
+
+                <!-- 4 Photoshop-style Curve Warp Handles -->
+                <div class="corner-pin curve-handle" id="pinTC" data-point="tc" title="상단 곡률 뒤틀기 (드래그하여 상단 굴곡 맞춤)">
+                  <span class="pin-badge">T</span>
+                </div>
+                <div class="corner-pin curve-handle" id="pinRC" data-point="rc" title="우측 책등 곡률 뒤틀기 (드래그하여 책등 굴곡 맞춤)">
+                  <span class="pin-badge">R</span>
+                </div>
+                <div class="corner-pin curve-handle" id="pinBC" data-point="bc" title="하단 곡률 뒤틀기 (드래그하여 하단 굴곡 맞춤)">
+                  <span class="pin-badge">B</span>
+                </div>
+                <div class="corner-pin curve-handle" id="pinLC" data-point="lc" title="좌측 곡률 뒤틀기 (드래그하여 좌측 굴곡 맞춤)">
+                  <span class="pin-badge">L</span>
                 </div>
               </div>
 

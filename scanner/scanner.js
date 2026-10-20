@@ -13,12 +13,14 @@ const state = {
   isDraggingPin: null, // 0..3 or null
   isProcessing: false,
   workerReady: false,
+  viewMode: "crop", // "crop" (8-Point Warp Area) | "preview" (Dewarped Result)
   defaultOptions: {
     mode: "bw",
     shadowKernelSize: 31,
     contrast: 1.2,
     sharpen: 1.2,
     dewarpCurves: true,
+    dewarpStrength: 1.0,
     isDoublePage: false,
     removeFingers: false
   }
@@ -41,17 +43,28 @@ const resultCanvas = document.getElementById("resultCanvas");
 
 const cropScrimPath = document.getElementById("cropScrimPath");
 const cornerSvgOverlay = document.getElementById("cornerSvgOverlay");
-const cornerPolygon = document.getElementById("cornerPolygon");
-const lineTLTR = document.getElementById("lineTLTR");
-const lineTRBR = document.getElementById("lineTRBR");
-const lineBRBL = document.getElementById("lineBRBL");
-const lineBLTL = document.getElementById("lineBLTL");
-const cornerPins = [
-  document.getElementById("pinTL"),
-  document.getElementById("pinTR"),
-  document.getElementById("pinBR"),
-  document.getElementById("pinBL")
-];
+const cornerPinsWrap = document.getElementById("cornerPinsWrap");
+const edgeTop = document.getElementById("edgeTop");
+const edgeRight = document.getElementById("edgeRight");
+const edgeBottom = document.getElementById("edgeBottom");
+const edgeLeft = document.getElementById("edgeLeft");
+const cornerPins = {
+  tl: document.getElementById("pinTL"),
+  tr: document.getElementById("pinTR"),
+  br: document.getElementById("pinBR"),
+  bl: document.getElementById("pinBL")
+};
+const curvePins = {
+  tc: document.getElementById("pinTC"),
+  rc: document.getElementById("pinRC"),
+  bc: document.getElementById("pinBC"),
+  lc: document.getElementById("pinLC")
+};
+const allPins = { ...cornerPins, ...curvePins };
+
+const tabModeCrop = document.getElementById("tabModeCrop");
+const tabModePreview = document.getElementById("tabModePreview");
+const viewportHintText = document.getElementById("viewportHintText");
 
 const loupeWrap = document.getElementById("loupeWrap");
 const loupeCanvas = document.getElementById("loupeCanvas");
@@ -70,12 +83,14 @@ const sliderContrast = document.getElementById("sliderContrast");
 const valContrast = document.getElementById("valContrast");
 const sliderSharpen = document.getElementById("sliderSharpen");
 const valSharpen = document.getElementById("valSharpen");
+const sliderDewarp = document.getElementById("sliderDewarp");
+const valDewarp = document.getElementById("valDewarp");
 
 const btnRotateLeft = document.getElementById("btnRotateLeft");
 const btnRotateRight = document.getElementById("btnRotateRight");
 const btnAutoCorners = document.getElementById("btnAutoCorners");
+const btnSplitSpread = document.getElementById("btnSplitSpread");
 const chkDewarpCurves = document.getElementById("chkDewarpCurves");
-const chkDoublePage = document.getElementById("chkDoublePage");
 const chkRemoveFingers = document.getElementById("chkRemoveFingers");
 
 const btnApplyAll = document.getElementById("btnApplyAll");
@@ -316,6 +331,7 @@ function createPageFromFile(file) {
           page.corners = getDefaultCorners(page.width, page.height);
         }
 
+        page.curveHandles = getDefaultCurveHandles(page.corners);
         resolve(page);
       };
       img.onerror = reject;
@@ -333,6 +349,16 @@ function getDefaultCorners(w, h) {
     { x: Math.round(w * 0.96), y: Math.round(h * 0.96) },
     { x: Math.round(w * 0.04), y: Math.round(h * 0.96) }
   ];
+}
+
+function getDefaultCurveHandles(corners) {
+  const [tl, tr, br, bl] = corners;
+  return {
+    tc: { x: Math.round((tl.x + tr.x) / 2), y: Math.round((tl.y + tr.y) / 2) },
+    rc: { x: Math.round((tr.x + br.x) / 2), y: Math.round((tr.y + br.y) / 2) },
+    bc: { x: Math.round((bl.x + br.x) / 2), y: Math.round((bl.y + br.y) / 2) },
+    lc: { x: Math.round((tl.x + bl.x) / 2), y: Math.round((tl.y + bl.y) / 2) }
+  };
 }
 
 // -------------------------------------------------------------
@@ -382,8 +408,11 @@ function syncControlsWithOptions(options) {
   sliderSharpen.value = options.sharpen;
   valSharpen.textContent = options.sharpen;
 
-  chkDewarpCurves.checked = !!options.dewarpCurves;
-  chkDoublePage.checked = !!options.isDoublePage;
+  const strengthPct = Math.round((options.dewarpStrength !== undefined ? options.dewarpStrength : 1.0) * 100);
+  sliderDewarp.value = strengthPct;
+  valDewarp.textContent = `${strengthPct}%`;
+
+  chkDewarpCurves.checked = !!options.dewarpCurves && strengthPct > 0;
   chkRemoveFingers.checked = !!options.removeFingers;
 }
 
@@ -396,26 +425,61 @@ async function renderCurrentPage() {
   if (state.activeIndex < 0 || state.activeIndex >= state.pages.length) return;
   const page = state.pages[state.activeIndex];
 
-  footerDimensions.textContent = `해상도: ${page.width} × ${page.height} px`;
-
-  if (!page.enhancedCanvas) {
-    await enhanceActivePage();
+  if (state.viewMode === "preview") {
+    // Show straightened and cropped A4 scan result
+    if (!page.croppedCanvas) {
+      await processCropPage(page, true);
+    }
+    if (page.croppedCanvas) {
+      footerDimensions.textContent = `스캔 결과 해상도: ${page.croppedCanvas.width} × ${page.croppedCanvas.height} px (A4 규격)`;
+      drawEditorCanvas(page, page.croppedCanvas);
+    }
+    if (cornerSvgOverlay) cornerSvgOverlay.classList.add("hidden");
+    if (cornerPinsWrap) cornerPinsWrap.classList.add("hidden");
   } else {
-    drawEditorCanvas(page);
+    // Show 8-point warp interactive editor
+    footerDimensions.textContent = `원본 해상도: ${page.width} × ${page.height} px`;
+    if (!page.enhancedCanvas) {
+      await enhanceActivePage();
+    } else {
+      drawEditorCanvas(page, page.enhancedCanvas);
+    }
+    if (cornerSvgOverlay) cornerSvgOverlay.classList.remove("hidden");
+    if (cornerPinsWrap) cornerPinsWrap.classList.remove("hidden");
+    updateCornerPinsUI();
   }
 
-  updateCornerPinsUI();
   fitZoomToContainer();
 }
 
-function drawEditorCanvas(page) {
-  if (!page.enhancedCanvas) return;
-  resultCanvas.width = page.enhancedCanvas.width;
-  resultCanvas.height = page.enhancedCanvas.height;
+function drawEditorCanvas(page, targetCanvas) {
+  const source = targetCanvas || page.enhancedCanvas;
+  if (!source) return;
+  resultCanvas.width = source.width;
+  resultCanvas.height = source.height;
   const resCtx = resultCanvas.getContext("2d");
   resCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-  resCtx.drawImage(page.enhancedCanvas, 0, 0);
+  resCtx.drawImage(source, 0, 0);
 }
+
+async function switchViewMode(mode) {
+  state.viewMode = mode;
+  if (tabModeCrop) tabModeCrop.classList.toggle("active", mode === "crop");
+  if (tabModePreview) tabModePreview.classList.toggle("active", mode === "preview");
+
+  if (mode === "crop") {
+    if (viewportHintText) viewportHintText.innerHTML = `💡 핸들로 휜 테두리를 맞춘 후 <strong>[📄 펴진 결과 보기]</strong>로 확인하세요`;
+  } else {
+    if (viewportHintText) viewportHintText.innerHTML = `✨ 뒤틀기(Warp)가 적용되어 <strong>A4 평면으로 반듯하게 펴진 스캔본</strong>입니다`;
+  }
+
+  if (state.activeIndex >= 0) {
+    await renderCurrentPage();
+  }
+}
+
+if (tabModeCrop) tabModeCrop.addEventListener("click", () => switchViewMode("crop"));
+if (tabModePreview) tabModePreview.addEventListener("click", () => switchViewMode("preview"));
 
 let enhanceDebounceTimer = null;
 function debounceEnhance() {
@@ -452,16 +516,19 @@ async function enhanceActivePage() {
     page.croppedCanvas = null; // Invalidate crop cache
     page.status = "done";
 
-    drawEditorCanvas(page);
+    if (state.viewMode === "preview") {
+      await processCropPage(page, false);
+    }
+    renderCurrentPage();
   } catch (err) {
     console.error("Enhance error:", err);
     showToast("필터 보정 오류: " + err.message);
   }
 }
 
-async function processCropPage(page) {
+async function processCropPage(page, showSpinner = true) {
   if (page.croppedCanvas) return;
-  showProcessing("자른 스캔본 생성 중...");
+  if (showSpinner) showProcessing("자른 스캔본 생성 중...");
 
   try {
     const offCanvas = document.createElement("canvas");
@@ -474,6 +541,7 @@ async function processCropPage(page) {
     const res = await sendWorkerRequest("PROCESS_IMAGE", {
       imageData: imgData,
       corners: page.corners,
+      curveHandles: page.curveHandles,
       options: page.options
     }, [imgData.data.buffer]);
 
@@ -494,9 +562,9 @@ async function processCropPage(page) {
     }
   } catch (err) {
     console.error("Crop error:", err);
-    showToast("크롭 처리 오류: " + err.message);
+    if (showSpinner) showToast("크롭 처리 오류: " + err.message);
   } finally {
-    hideProcessing();
+    if (showSpinner) hideProcessing();
   }
 }
 
@@ -512,55 +580,104 @@ function hideProcessing() {
 }
 
 // -------------------------------------------------------------
-// Interactive 4-Corner Pin UI & Visual Crop Scrim (DIM Mask)
+// Interactive 8-Point Photoshop-Style Curved Warp UI & Visual Crop Scrim (DIM Mask)
 // -------------------------------------------------------------
 function updateCornerPinsUI() {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
   const corners = page.corners;
+  if (!corners || corners.length < 4) return;
+  const [tl, tr, br, bl] = corners;
+
+  if (!page.curveHandles) {
+    page.curveHandles = getDefaultCurveHandles(corners);
+  }
+  const { tc, rc, bc, lc } = page.curveHandles;
 
   // Set SVG coordinate system to match original image resolution
   cornerSvgOverlay.setAttribute("viewBox", `0 0 ${page.width} ${page.height}`);
 
-  // Outer dark scrim: Full image boundary + inner quadrilateral hole (evenodd)
+  // Quadratic Bezier control points calculation
+  // P_ctrl = 2 * P_handle - 0.5 * (P0 + P1) so curve exactly passes through handle at t=0.5
+  const ctrlTop = {
+    x: 2 * tc.x - 0.5 * (tl.x + tr.x),
+    y: 2 * tc.y - 0.5 * (tl.y + tr.y)
+  };
+  const ctrlRight = {
+    x: 2 * rc.x - 0.5 * (tr.x + br.x),
+    y: 2 * rc.y - 0.5 * (tr.y + br.y)
+  };
+  const ctrlBottom = {
+    x: 2 * bc.x - 0.5 * (bl.x + br.x),
+    y: 2 * bc.y - 0.5 * (bl.y + br.y)
+  };
+  const ctrlLeft = {
+    x: 2 * lc.x - 0.5 * (tl.x + bl.x),
+    y: 2 * lc.y - 0.5 * (tl.y + bl.y)
+  };
+
+  // 4 Curved Edge Lines
+  if (edgeTop) edgeTop.setAttribute("d", `M ${tl.x} ${tl.y} Q ${ctrlTop.x} ${ctrlTop.y} ${tr.x} ${tr.y}`);
+  if (edgeRight) edgeRight.setAttribute("d", `M ${tr.x} ${tr.y} Q ${ctrlRight.x} ${ctrlRight.y} ${br.x} ${br.y}`);
+  if (edgeBottom) edgeBottom.setAttribute("d", `M ${br.x} ${br.y} Q ${ctrlBottom.x} ${ctrlBottom.y} ${bl.x} ${bl.y}`);
+  if (edgeLeft) edgeLeft.setAttribute("d", `M ${bl.x} ${bl.y} Q ${ctrlLeft.x} ${ctrlLeft.y} ${tl.x} ${tl.y}`);
+
+  // Outer dark scrim: Full image boundary + inner curved quad hole (evenodd)
   if (cropScrimPath) {
-    const scrimD = `M 0 0 L ${page.width} 0 L ${page.width} ${page.height} L 0 ${page.height} Z M ${corners[0].x} ${corners[0].y} L ${corners[1].x} ${corners[1].y} L ${corners[2].x} ${corners[2].y} L ${corners[3].x} ${corners[3].y} Z`;
+    const scrimD = `M 0 0 L ${page.width} 0 L ${page.width} ${page.height} L 0 ${page.height} Z ` +
+      `M ${tl.x} ${tl.y} ` +
+      `Q ${ctrlTop.x} ${ctrlTop.y} ${tr.x} ${tr.y} ` +
+      `Q ${ctrlRight.x} ${ctrlRight.y} ${br.x} ${br.y} ` +
+      `Q ${ctrlBottom.x} ${ctrlBottom.y} ${bl.x} ${bl.y} ` +
+      `Q ${ctrlLeft.x} ${ctrlLeft.y} ${tl.x} ${tl.y} Z`;
     cropScrimPath.setAttribute("d", scrimD);
   }
 
-  // Update SVG lines & polygon in raw image pixel coordinates
-  const ptsStr = corners.map((p) => `${p.x},${p.y}`).join(" ");
-  cornerPolygon.setAttribute("points", ptsStr);
-
-  setSvgLine(lineTLTR, corners[0], corners[1]);
-  setSvgLine(lineTRBR, corners[1], corners[2]);
-  setSvgLine(lineBRBL, corners[2], corners[3]);
-  setSvgLine(lineBLTL, corners[3], corners[0]);
-
   // Position 4 corner pins via CSS percentage
-  corners.forEach((pt, i) => {
-    const pin = cornerPins[i];
-    pin.style.left = `${(pt.x / page.width) * 100}%`;
-    pin.style.top = `${(pt.y / page.height) * 100}%`;
-  });
+  cornerPins.tl.style.left = `${(tl.x / page.width) * 100}%`;
+  cornerPins.tl.style.top = `${(tl.y / page.height) * 100}%`;
+  cornerPins.tr.style.left = `${(tr.x / page.width) * 100}%`;
+  cornerPins.tr.style.top = `${(tr.y / page.height) * 100}%`;
+  cornerPins.br.style.left = `${(br.x / page.width) * 100}%`;
+  cornerPins.br.style.top = `${(br.y / page.height) * 100}%`;
+  cornerPins.bl.style.left = `${(bl.x / page.width) * 100}%`;
+  cornerPins.bl.style.top = `${(bl.y / page.height) * 100}%`;
+
+  // Position 4 curve handles via CSS percentage
+  curvePins.tc.style.left = `${(tc.x / page.width) * 100}%`;
+  curvePins.tc.style.top = `${(tc.y / page.height) * 100}%`;
+  curvePins.rc.style.left = `${(rc.x / page.width) * 100}%`;
+  curvePins.rc.style.top = `${(rc.y / page.height) * 100}%`;
+  curvePins.bc.style.left = `${(bc.x / page.width) * 100}%`;
+  curvePins.bc.style.top = `${(bc.y / page.height) * 100}%`;
+  curvePins.lc.style.left = `${(lc.x / page.width) * 100}%`;
+  curvePins.lc.style.top = `${(lc.y / page.height) * 100}%`;
 }
 
-function setSvgLine(lineEl, p1, p2) {
-  lineEl.setAttribute("x1", p1.x);
-  lineEl.setAttribute("y1", p1.y);
-  lineEl.setAttribute("x2", p2.x);
-  lineEl.setAttribute("y2", p2.y);
-}
-
-// Pin dragging event listeners
-cornerPins.forEach((pin, index) => {
-  pin.addEventListener("mousedown", (e) => {
+// 8 Pins Dragging Event Listeners
+Object.keys(allPins).forEach((pinKey) => {
+  const pinEl = allPins[pinKey];
+  if (!pinEl) return;
+  pinEl.addEventListener("mousedown", (e) => {
     e.stopPropagation();
-    state.isDraggingPin = index;
+    state.isDraggingPin = pinKey;
     loupeWrap.classList.remove("hidden");
-    updateLoupe(state.pages[state.activeIndex].corners[index]);
+    const pt = getPinCoord(pinKey);
+    if (pt) updateLoupe(pt, pinKey);
   });
 });
+
+function getPinCoord(pinKey) {
+  if (state.activeIndex < 0) return null;
+  const page = state.pages[state.activeIndex];
+  if (["tl", "tr", "br", "bl"].includes(pinKey)) {
+    const idx = { tl: 0, tr: 1, br: 2, bl: 3 }[pinKey];
+    return page.corners[idx];
+  } else if (page.curveHandles && page.curveHandles[pinKey]) {
+    return page.curveHandles[pinKey];
+  }
+  return null;
+}
 
 window.addEventListener("mousemove", (e) => {
   if (state.isDraggingPin !== null && state.activeIndex >= 0) {
@@ -571,12 +688,49 @@ window.addEventListener("mousemove", (e) => {
     const scaleX = page.width / rect.width;
     const scaleY = page.height / rect.height;
 
-    const rawX = Math.max(0, Math.min(page.width, (e.clientX - rect.left) * scaleX));
-    const rawY = Math.max(0, Math.min(page.height, (e.clientY - rect.top) * scaleY));
+    const rawX = Math.round(Math.max(0, Math.min(page.width, (e.clientX - rect.left) * scaleX)));
+    const rawY = Math.round(Math.max(0, Math.min(page.height, (e.clientY - rect.top) * scaleY)));
 
-    page.corners[state.isDraggingPin] = { x: Math.round(rawX), y: Math.round(rawY) };
+    const pinKey = state.isDraggingPin;
+
+    if (["tl", "tr", "br", "bl"].includes(pinKey)) {
+      const idx = { tl: 0, tr: 1, br: 2, bl: 3 }[pinKey];
+      const oldPt = page.corners[idx];
+      const dx = rawX - oldPt.x;
+      const dy = rawY - oldPt.y;
+
+      page.corners[idx] = { x: rawX, y: rawY };
+
+      // Propagate proportional shift to adjacent curve handles so curvature is preserved
+      if (!page.curveHandles) page.curveHandles = getDefaultCurveHandles(page.corners);
+      if (pinKey === "tl") {
+        page.curveHandles.tc.x += Math.round(dx / 2);
+        page.curveHandles.tc.y += Math.round(dy / 2);
+        page.curveHandles.lc.x += Math.round(dx / 2);
+        page.curveHandles.lc.y += Math.round(dy / 2);
+      } else if (pinKey === "tr") {
+        page.curveHandles.tc.x += Math.round(dx / 2);
+        page.curveHandles.tc.y += Math.round(dy / 2);
+        page.curveHandles.rc.x += Math.round(dx / 2);
+        page.curveHandles.rc.y += Math.round(dy / 2);
+      } else if (pinKey === "br") {
+        page.curveHandles.bc.x += Math.round(dx / 2);
+        page.curveHandles.bc.y += Math.round(dy / 2);
+        page.curveHandles.rc.x += Math.round(dx / 2);
+        page.curveHandles.rc.y += Math.round(dy / 2);
+      } else if (pinKey === "bl") {
+        page.curveHandles.bc.x += Math.round(dx / 2);
+        page.curveHandles.bc.y += Math.round(dy / 2);
+        page.curveHandles.lc.x += Math.round(dx / 2);
+        page.curveHandles.lc.y += Math.round(dy / 2);
+      }
+    } else if (page.curveHandles && page.curveHandles[pinKey]) {
+      page.curveHandles[pinKey] = { x: rawX, y: rawY };
+    }
+
     updateCornerPinsUI();
-    updateLoupe(page.corners[state.isDraggingPin]);
+    const currentPt = getPinCoord(pinKey);
+    if (currentPt) updateLoupe(currentPt, pinKey);
   }
 });
 
@@ -586,18 +740,27 @@ window.addEventListener("mouseup", () => {
     loupeWrap.classList.add("hidden");
 
     if (state.activeIndex >= 0) {
-      state.pages[state.activeIndex].croppedCanvas = null; // Invalidate crop cache
+      const page = state.pages[state.activeIndex];
+      page.croppedCanvas = null; // Invalidate crop cache
+
+      // Pre-compute straightened canvas in background
+      processCropPage(page, false).then(() => {
+        if (state.viewMode === "preview") {
+          renderCurrentPage();
+        }
+      });
     }
   }
 });
 
-function updateLoupe(point) {
+function updateLoupe(point, pinKey) {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
-  const pin = cornerPins[state.isDraggingPin];
+  const pinEl = allPins[pinKey];
+  if (!pinEl) return;
 
-  loupeWrap.style.left = pin.style.left;
-  loupeWrap.style.top = pin.style.top;
+  loupeWrap.style.left = pinEl.style.left;
+  loupeWrap.style.top = pinEl.style.top;
 
   const sSize = 60;
   loupeCtx.clearRect(0, 0, 140, 140);
@@ -699,21 +862,37 @@ sliderSharpen.addEventListener("input", (e) => {
   }
 });
 
+sliderDewarp.addEventListener("input", (e) => {
+  const pct = parseInt(e.target.value, 10);
+  valDewarp.textContent = `${pct}%`;
+  if (state.activeIndex >= 0) {
+    const page = state.pages[state.activeIndex];
+    page.options.dewarpStrength = pct / 100;
+    page.options.dewarpCurves = pct > 0;
+    state.defaultOptions.dewarpStrength = pct / 100;
+    state.defaultOptions.dewarpCurves = pct > 0;
+    chkDewarpCurves.checked = pct > 0;
+    page.enhancedCanvas = null;
+    page.croppedCanvas = null;
+    debounceEnhance();
+  }
+});
+
 chkDewarpCurves.addEventListener("change", (e) => {
   if (state.activeIndex >= 0) {
     const page = state.pages[state.activeIndex];
     page.options.dewarpCurves = e.target.checked;
+    const strength = e.target.checked ? 1.0 : 0.0;
+    page.options.dewarpStrength = strength;
     state.defaultOptions.dewarpCurves = e.target.checked;
-    page.croppedCanvas = null;
-  }
-});
+    state.defaultOptions.dewarpStrength = strength;
 
-chkDoublePage.addEventListener("change", (e) => {
-  if (state.activeIndex >= 0) {
-    const page = state.pages[state.activeIndex];
-    page.options.isDoublePage = e.target.checked;
-    state.defaultOptions.isDoublePage = e.target.checked;
+    sliderDewarp.value = Math.round(strength * 100);
+    valDewarp.textContent = `${sliderDewarp.value}%`;
+
+    page.enhancedCanvas = null;
     page.croppedCanvas = null;
+    debounceEnhance();
   }
 });
 
@@ -751,11 +930,13 @@ function rotateActivePage(deg) {
     page.width = newImg.width;
     page.height = newImg.height;
     page.corners = getDefaultCorners(page.width, page.height);
-    await renderCurrentPage();
+    page.curveHandles = getDefaultCurveHandles(page.corners);
+    page.enhancedCanvas = null;
+    page.croppedCanvas = null;
+    await renderActivePage();
   };
   newImg.src = canvas.toDataURL("image/png");
 }
-
 
 btnAutoCorners.addEventListener("click", async () => {
   if (state.activeIndex < 0) return;
@@ -772,6 +953,7 @@ btnAutoCorners.addEventListener("click", async () => {
 
     const res = await sendWorkerRequest("DETECT_CORNERS", { imageData: imgData }, [imgData.data.buffer]);
     page.corners = res.corners;
+    page.curveHandles = getDefaultCurveHandles(page.corners);
     page.croppedCanvas = null;
     updateCornerPinsUI();
     showToast("모서리가 자동으로 감지되었습니다.");
@@ -781,6 +963,116 @@ btnAutoCorners.addEventListener("click", async () => {
     hideProcessing();
   }
 });
+
+btnSplitSpread.addEventListener("click", () => splitCurrentSpreadPage());
+
+async function splitCurrentSpreadPage() {
+  if (state.activeIndex < 0) return;
+  const page = state.pages[state.activeIndex];
+  showProcessing("펼친 양면 책을 왼쪽/오른쪽 2장으로 분할 중...");
+
+  try {
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = page.width;
+    offCanvas.height = page.height;
+    const ctx = offCanvas.getContext("2d");
+    ctx.drawImage(page.rawImage, 0, 0);
+    const imgData = ctx.getImageData(0, 0, page.width, page.height);
+
+    const res = await sendWorkerRequest("SPLIT_SPREAD", { imageData: imgData }, [imgData.data.buffer]);
+    const { leftData, rightData } = res;
+
+    // Convert leftData to Image
+    const leftCanvas = document.createElement("canvas");
+    leftCanvas.width = leftData.width;
+    leftCanvas.height = leftData.height;
+    leftCanvas.getContext("2d").putImageData(leftData, 0, 0);
+
+    const leftImg = new Image();
+    const leftLoadPromise = new Promise((resolve, reject) => {
+      leftImg.onload = resolve;
+      leftImg.onerror = reject;
+    });
+    leftImg.src = leftCanvas.toDataURL("image/png");
+    await leftLoadPromise;
+
+    // Convert rightData to Image
+    const rightCanvas = document.createElement("canvas");
+    rightCanvas.width = rightData.width;
+    rightCanvas.height = rightData.height;
+    rightCanvas.getContext("2d").putImageData(rightData, 0, 0);
+
+    const rightImg = new Image();
+    const rightLoadPromise = new Promise((resolve, reject) => {
+      rightImg.onload = resolve;
+      rightImg.onerror = reject;
+    });
+    rightImg.src = rightCanvas.toDataURL("image/png");
+    await rightLoadPromise;
+
+    // Auto detect corners for both separated pages
+    let leftCorners = getDefaultCorners(leftImg.width, leftImg.height);
+    let rightCorners = getDefaultCorners(rightImg.width, rightImg.height);
+
+    try {
+      const lData = leftCanvas.getContext("2d").getImageData(0, 0, leftData.width, leftData.height);
+      const lRes = await sendWorkerRequest("DETECT_CORNERS", { imageData: lData }, [lData.data.buffer]);
+      if (lRes && lRes.corners) leftCorners = lRes.corners;
+    } catch (e) {
+      console.warn("Left corner detection fallback:", e);
+    }
+
+    try {
+      const rData = rightCanvas.getContext("2d").getImageData(0, 0, rightData.width, rightData.height);
+      const rRes = await sendWorkerRequest("DETECT_CORNERS", { imageData: rData }, [rData.data.buffer]);
+      if (rRes && rRes.corners) rightCorners = rRes.corners;
+    } catch (e) {
+      console.warn("Right corner detection fallback:", e);
+    }
+
+    const baseName = page.name.replace(/\s*\([0-9]+\/[0-9]+\s*(좌|우)\)$/, "");
+
+    const leftPage = {
+      name: `${baseName} (좌)`,
+      rawImage: leftImg,
+      width: leftImg.width,
+      height: leftImg.height,
+      corners: leftCorners,
+      curveHandles: getDefaultCurveHandles(leftCorners),
+      options: { ...page.options, isDoublePage: false, dewarpCurves: true },
+      enhancedCanvas: null,
+      croppedCanvas: null,
+      thumbUrl: leftCanvas.toDataURL("image/jpeg", 0.75),
+      status: "ready"
+    };
+
+    const rightPage = {
+      name: `${baseName} (우)`,
+      rawImage: rightImg,
+      width: rightImg.width,
+      height: rightImg.height,
+      corners: rightCorners,
+      curveHandles: getDefaultCurveHandles(rightCorners),
+      options: { ...page.options, isDoublePage: false, dewarpCurves: true },
+      enhancedCanvas: null,
+      croppedCanvas: null,
+      thumbUrl: rightCanvas.toDataURL("image/jpeg", 0.75),
+      status: "ready"
+    };
+
+    const currentIndex = state.activeIndex;
+    state.pages.splice(currentIndex, 1, leftPage, rightPage);
+
+    updateUIState();
+    selectPage(currentIndex);
+    showToast("양면 페이지를 왼쪽/오른쪽 2장으로 분할했습니다!");
+  } catch (err) {
+    console.error("Split page error:", err);
+    showToast("양면 분할 중 오류가 발생했습니다: " + err.message);
+  } finally {
+    hideProcessing();
+  }
+}
 
 btnApplyAll.addEventListener("click", async () => {
   if (state.pages.length === 0) return;
