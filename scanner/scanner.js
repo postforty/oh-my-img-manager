@@ -1,6 +1,6 @@
 /**
- * Oh My Image Manager - Document & Book Scanner Studio
- * UI Controller and Web Worker Client
+ * Oh My Image Manager - Smart Auto Book Scanner Studio
+ * Fully automated book spread detection, auto-split, curve dewarping, and illumination correction.
  */
 
 // -------------------------------------------------------------
@@ -10,19 +10,23 @@ const state = {
   pages: [],
   activeIndex: -1,
   zoom: 1.0,
-  isDraggingPin: null, // 0..3 or null
+  isPanning: false,
+  panStart: { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 },
   isProcessing: false,
   workerReady: false,
-  viewMode: "crop", // "crop" (8-Point Warp Area) | "preview" (Dewarped Result)
-  defaultOptions: {
-    mode: "bw",
-    shadowKernelSize: 31,
-    contrast: 1.2,
-    sharpen: 1.2,
+  isComparing: false,
+  isCropGuideActive: false,
+  isCropDragging: false,
+  cropDragStart: { x: 0, y: 0 },
+  options: {
+    mode: "bw", // 'bw' | 'grayscale' | 'color'
+    autoSplitSpread: true,
     dewarpCurves: true,
     dewarpStrength: 1.0,
-    isDoublePage: false,
-    removeFingers: false
+    cropRatios: { top: 0, bottom: 1.0, left: 0, right: 1.0 },
+    shadowKernelSize: 31,
+    contrast: 1.25,
+    sharpen: 1.2
   }
 };
 
@@ -41,34 +45,9 @@ const canvasContainer = document.getElementById("canvasContainer");
 const canvasWrapper = document.getElementById("canvasWrapper");
 const resultCanvas = document.getElementById("resultCanvas");
 
-const cropScrimPath = document.getElementById("cropScrimPath");
-const cornerSvgOverlay = document.getElementById("cornerSvgOverlay");
-const cornerPinsWrap = document.getElementById("cornerPinsWrap");
-const edgeTop = document.getElementById("edgeTop");
-const edgeRight = document.getElementById("edgeRight");
-const edgeBottom = document.getElementById("edgeBottom");
-const edgeLeft = document.getElementById("edgeLeft");
-const cornerPins = {
-  tl: document.getElementById("pinTL"),
-  tr: document.getElementById("pinTR"),
-  br: document.getElementById("pinBR"),
-  bl: document.getElementById("pinBL")
-};
-const curvePins = {
-  tc: document.getElementById("pinTC"),
-  rc: document.getElementById("pinRC"),
-  bc: document.getElementById("pinBC"),
-  lc: document.getElementById("pinLC")
-};
-const allPins = { ...cornerPins, ...curvePins };
-
-const tabModeCrop = document.getElementById("tabModeCrop");
-const tabModePreview = document.getElementById("tabModePreview");
+const btnHoldCompare = document.getElementById("btnHoldCompare");
+const btnToggleCropGuide = document.getElementById("btnToggleCropGuide");
 const viewportHintText = document.getElementById("viewportHintText");
-
-const loupeWrap = document.getElementById("loupeWrap");
-const loupeCanvas = document.getElementById("loupeCanvas");
-const loupeCtx = loupeCanvas.getContext("2d");
 
 const processingOverlay = document.getElementById("processingOverlay");
 const processingStatusText = document.getElementById("processingStatusText");
@@ -77,21 +56,29 @@ const btnModeBw = document.getElementById("btnModeBw");
 const btnModeGray = document.getElementById("btnModeGray");
 const btnModeColor = document.getElementById("btnModeColor");
 
-const sliderShadow = document.getElementById("sliderShadow");
-const valShadow = document.getElementById("valShadow");
-const sliderContrast = document.getElementById("sliderContrast");
-const valContrast = document.getElementById("valContrast");
-const sliderSharpen = document.getElementById("sliderSharpen");
-const valSharpen = document.getElementById("valSharpen");
-const sliderDewarp = document.getElementById("sliderDewarp");
-const valDewarp = document.getElementById("valDewarp");
+const chkAutoSplit = document.getElementById("chkAutoSplit");
+const chkDewarpCurves = document.getElementById("chkDewarpCurves");
+
+// Crop Area Controls (Workspace Style)
+const btnCropFull = document.getElementById("btnCropFull");
+const btnCropMargin = document.getElementById("btnCropMargin");
+const btnCropText = document.getElementById("btnCropText");
+
+const rangeCropTop = document.getElementById("rangeCropTop");
+const rangeCropBottom = document.getElementById("rangeCropBottom");
+const rangeCropLeft = document.getElementById("rangeCropLeft");
+const rangeCropRight = document.getElementById("rangeCropRight");
+
+const valCropTop = document.getElementById("valCropTop");
+const valCropBottom = document.getElementById("valCropBottom");
+const valCropLeft = document.getElementById("valCropLeft");
+const valCropRight = document.getElementById("valCropRight");
+
+const btnApplyCropAll = document.getElementById("btnApplyCropAll");
 
 const btnRotateLeft = document.getElementById("btnRotateLeft");
 const btnRotateRight = document.getElementById("btnRotateRight");
-const btnAutoCorners = document.getElementById("btnAutoCorners");
 const btnSplitSpread = document.getElementById("btnSplitSpread");
-const chkDewarpCurves = document.getElementById("chkDewarpCurves");
-const chkRemoveFingers = document.getElementById("chkRemoveFingers");
 
 const btnApplyAll = document.getElementById("btnApplyAll");
 const btnExportPdf = document.getElementById("btnExportPdf");
@@ -142,14 +129,14 @@ function initWorker() {
 
   scannerWorker.onerror = (err) => {
     console.error("Scanner Worker error:", err);
-    showToast("OpenCV 백그라운드 엔진 오류가 발생했습니다: " + (err.message || ""));
+    showToast("OpenCV 엔진 오류: " + (err.message || ""));
   };
 
   sendWorkerRequest("INIT", {}).then(() => {
     state.workerReady = true;
-    console.log("[Scanner] OpenCV WASM Engine initialized successfully (Strict CSP / Zero-eval mode)");
+    console.log("[Scanner] OpenCV WASM Engine ready (Auto-book scanner pipeline)");
   }).catch((err) => {
-    console.error("Worker initialization failed:", err);
+    console.error("Worker init failed:", err);
     showToast("엔진 초기화 실패: " + err.message);
   });
 }
@@ -199,7 +186,7 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     toastMessage.classList.add("hidden");
-  }, 2600);
+  }, 2800);
 }
 
 btnHelp.addEventListener("click", () => helpModal.classList.remove("hidden"));
@@ -226,7 +213,7 @@ btnOpenCropper.addEventListener("click", () => {
 });
 
 // -------------------------------------------------------------
-// File Upload & Queue Processing
+// Automated Upload & Book Processing Pipeline
 // -------------------------------------------------------------
 btnSelectFiles.addEventListener("click", () => fileInput.click());
 btnAddMoreFiles.addEventListener("click", () => fileInput.click());
@@ -266,74 +253,56 @@ async function handleFiles(files) {
     return;
   }
 
-  showProcessing("이미지를 불러오는 중입니다...");
+  showProcessing("책 페이지를 분석하고 고화질 스캔본으로 변환 중입니다...");
 
-  const firstNewIndex = state.pages.length;
+  const initialCount = state.pages.length;
+  let splitCount = 0;
 
   for (let i = 0; i < imageFiles.length; i++) {
     const file = imageFiles[i];
+    processingStatusText.textContent = `페이지 스캔 처리 중 (${i + 1}/${imageFiles.length})...`;
+
     try {
-      const page = await createPageFromFile(file);
-      state.pages.push(page);
+      const rawImg = await loadImageFromFile(file);
+      const isSpread = state.options.autoSplitSpread && (rawImg.naturalWidth > rawImg.naturalHeight * 1.15);
+
+      if (isSpread) {
+        // Automatically split into Left / Right pages
+        splitCount++;
+        const { leftPage, rightPage } = await splitAndProcessSpread(rawImg, file.name);
+        state.pages.push(leftPage, rightPage);
+      } else {
+        // Process single page
+        const singlePage = await processSinglePage(rawImg, file.name);
+        state.pages.push(singlePage);
+      }
     } catch (err) {
-      console.error("Failed to load file:", file.name, err);
+      console.error("Failed to process file:", file.name, err);
     }
   }
 
   hideProcessing();
   updateUIState();
 
-  if (state.activeIndex === -1 && state.pages.length > 0) {
+  if (initialCount === 0 && state.pages.length > 0) {
     selectPage(0);
   } else if (state.activeIndex >= 0) {
     renderFilmstrip();
   }
 
-  showToast(`${imageFiles.length}장의 사진이 추가되었습니다.`);
+  if (splitCount > 0) {
+    showToast(`총 ${state.pages.length}장의 고화질 스캔본이 생성되었습니다. (양면 ${splitCount}장 자동 분할)`);
+  } else {
+    showToast(`총 ${state.pages.length}장의 고화질 스캔본이 생성되었습니다.`);
+  }
 }
 
-function createPageFromFile(file) {
+function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = async () => {
-        const id = "page_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
-        const page = {
-          id,
-          file,
-          name: file.name,
-          rawImage: img,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-          rotation: 0,
-          corners: null,
-          enhancedCanvas: null,
-          croppedCanvas: null,
-          thumbUrl: reader.result,
-          options: { ...state.defaultOptions },
-          status: "idle"
-        };
-
-        // Detect corners in worker
-        try {
-          const offCanvas = document.createElement("canvas");
-          offCanvas.width = page.width;
-          offCanvas.height = page.height;
-          const ctx = offCanvas.getContext("2d");
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, page.width, page.height);
-
-          const res = await sendWorkerRequest("DETECT_CORNERS", { imageData: imgData }, [imgData.data.buffer]);
-          page.corners = res.corners;
-        } catch (err) {
-          console.warn("Corner detection error, using default frame", err);
-          page.corners = getDefaultCorners(page.width, page.height);
-        }
-
-        page.curveHandles = getDefaultCurveHandles(page.corners);
-        resolve(page);
-      };
+      img.onload = () => resolve(img);
       img.onerror = reject;
       img.src = reader.result;
     };
@@ -342,23 +311,127 @@ function createPageFromFile(file) {
   });
 }
 
-function getDefaultCorners(w, h) {
-  return [
-    { x: Math.round(w * 0.04), y: Math.round(h * 0.04) },
-    { x: Math.round(w * 0.96), y: Math.round(h * 0.04) },
-    { x: Math.round(w * 0.96), y: Math.round(h * 0.96) },
-    { x: Math.round(w * 0.04), y: Math.round(h * 0.96) }
-  ];
+/**
+ * Splits an open book spread into 2 independent pages and auto-enhances them.
+ */
+async function splitAndProcessSpread(rawImg, originalName) {
+  const offCanvas = document.createElement("canvas");
+  offCanvas.width = rawImg.naturalWidth;
+  offCanvas.height = rawImg.naturalHeight;
+  const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(rawImg, 0, 0);
+  const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+
+  // 1. Worker splits spread into leftData & rightData
+  const splitRes = await sendWorkerRequest("SPLIT_SPREAD", { imageData: imgData }, [imgData.data.buffer]);
+  const { leftData, rightData } = splitRes;
+
+  const baseName = originalName.replace(/\.[^/.]+$/, "");
+
+  // 2. Process Left Page
+  const leftOptions = { ...state.options, spineSide: "right" };
+  const leftRes = await sendWorkerRequest("PROCESS_AUTO_PAGE", {
+    imageData: leftData,
+    options: leftOptions
+  }, [leftData.data.buffer]);
+
+  const leftCanvas = document.createElement("canvas");
+  leftCanvas.width = leftRes.imageData.width;
+  leftCanvas.height = leftRes.imageData.height;
+  leftCanvas.getContext("2d").putImageData(leftRes.imageData, 0, 0);
+
+  // Create clean raw image for Left page (preserving original crop dimensions)
+  const leftRawCanvas = document.createElement("canvas");
+  leftRawCanvas.width = splitRes.splitX;
+  leftRawCanvas.height = offCanvas.height;
+  leftRawCanvas.getContext("2d").drawImage(offCanvas, 0, 0, splitRes.splitX, offCanvas.height, 0, 0, leftRawCanvas.width, leftRawCanvas.height);
+
+  const leftPage = {
+    id: "page_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+    name: `${baseName} (좌)`,
+    rawImage: leftRawCanvas,
+    scanCanvas: leftCanvas,
+    width: leftCanvas.width,
+    height: leftCanvas.height,
+    options: leftOptions,
+    thumbUrl: createThumbnail(leftCanvas)
+  };
+
+  // 3. Process Right Page
+  const rightOptions = { ...state.options, spineSide: "left" };
+  const rightRes = await sendWorkerRequest("PROCESS_AUTO_PAGE", {
+    imageData: rightData,
+    options: rightOptions
+  }, [rightData.data.buffer]);
+
+  const rightCanvas = document.createElement("canvas");
+  rightCanvas.width = rightRes.imageData.width;
+  rightCanvas.height = rightRes.imageData.height;
+  rightCanvas.getContext("2d").putImageData(rightRes.imageData, 0, 0);
+
+  const rightRawCanvas = document.createElement("canvas");
+  rightRawCanvas.width = offCanvas.width - splitRes.splitX;
+  rightRawCanvas.height = offCanvas.height;
+  rightRawCanvas.getContext("2d").drawImage(offCanvas, splitRes.splitX, 0, offCanvas.width - splitRes.splitX, offCanvas.height, 0, 0, rightRawCanvas.width, rightRawCanvas.height);
+
+  const rightPage = {
+    id: "page_" + (Date.now() + 1) + "_" + Math.random().toString(36).substr(2, 5),
+    name: `${baseName} (우)`,
+    rawImage: rightRawCanvas,
+    scanCanvas: rightCanvas,
+    width: rightCanvas.width,
+    height: rightCanvas.height,
+    options: rightOptions,
+    thumbUrl: createThumbnail(rightCanvas)
+  };
+
+  return { leftPage, rightPage };
 }
 
-function getDefaultCurveHandles(corners) {
-  const [tl, tr, br, bl] = corners;
+/**
+ * Processes a single portrait document or book page.
+ */
+async function processSinglePage(rawImg, name) {
+  const offCanvas = document.createElement("canvas");
+  offCanvas.width = rawImg.naturalWidth;
+  offCanvas.height = rawImg.naturalHeight;
+  const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(rawImg, 0, 0);
+  const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+
+  const res = await sendWorkerRequest("PROCESS_AUTO_PAGE", {
+    imageData: imgData,
+    options: state.options
+  }, [imgData.data.buffer]);
+
+  const scanCanvas = document.createElement("canvas");
+  scanCanvas.width = res.imageData.width;
+  scanCanvas.height = res.imageData.height;
+  scanCanvas.getContext("2d").putImageData(res.imageData, 0, 0);
+
   return {
-    tc: { x: Math.round((tl.x + tr.x) / 2), y: Math.round((tl.y + tr.y) / 2) },
-    rc: { x: Math.round((tr.x + br.x) / 2), y: Math.round((tr.y + br.y) / 2) },
-    bc: { x: Math.round((bl.x + br.x) / 2), y: Math.round((bl.y + br.y) / 2) },
-    lc: { x: Math.round((tl.x + bl.x) / 2), y: Math.round((tl.y + bl.y) / 2) }
+    id: "page_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+    name,
+    rawImage: rawImg,
+    scanCanvas,
+    width: scanCanvas.width,
+    height: scanCanvas.height,
+    options: { ...state.options },
+    thumbUrl: createThumbnail(scanCanvas)
   };
+}
+
+function createThumbnail(sourceCanvas) {
+  const thumbW = 120;
+  const scale = thumbW / sourceCanvas.width;
+  const thumbH = Math.max(80, Math.round(sourceCanvas.height * scale));
+
+  const tCanvas = document.createElement("canvas");
+  tCanvas.width = thumbW;
+  tCanvas.height = thumbH;
+  const tCtx = tCanvas.getContext("2d");
+  tCtx.drawImage(sourceCanvas, 0, 0, thumbW, thumbH);
+  return tCanvas.toDataURL("image/jpeg", 0.7);
 }
 
 // -------------------------------------------------------------
@@ -384,187 +457,139 @@ function selectPage(index) {
   state.activeIndex = index;
   const page = state.pages[index];
 
-  // Sync sidebar controls with current page options
-  syncControlsWithOptions(page.options);
+  // Sync mode buttons
+  [btnModeBw, btnModeGray, btnModeColor].forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === page.options.mode);
+  });
 
-  // Render view
-  renderCurrentPage();
+  // Sync crop sliders
+  updateCropSlidersUI(page.options.cropRatios);
+
+  renderCurrentPage(true);
   renderFilmstrip();
 }
 
-function syncControlsWithOptions(options) {
-  // Mode buttons
-  [btnModeBw, btnModeGray, btnModeColor].forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === options.mode);
+function updateCropSlidersUI(ratios, presetName = null) {
+  if (!ratios) ratios = { top: 0, bottom: 1.0, left: 0, right: 1.0 };
+  if (rangeCropTop) rangeCropTop.value = (ratios.top * 100).toFixed(1);
+  if (rangeCropBottom) rangeCropBottom.value = (ratios.bottom * 100).toFixed(1);
+  if (rangeCropLeft) rangeCropLeft.value = (ratios.left * 100).toFixed(1);
+  if (rangeCropRight) rangeCropRight.value = (ratios.right * 100).toFixed(1);
+
+  if (valCropTop) valCropTop.textContent = `${(ratios.top * 100).toFixed(1)}%`;
+  if (valCropBottom) valCropBottom.textContent = `${(ratios.bottom * 100).toFixed(1)}%`;
+  if (valCropLeft) valCropLeft.textContent = `${(ratios.left * 100).toFixed(1)}%`;
+  if (valCropRight) valCropRight.textContent = `${(ratios.right * 100).toFixed(1)}%`;
+
+  [btnCropFull, btnCropMargin, btnCropText].forEach((btn) => {
+    if (btn) btn.classList.toggle("active", btn.dataset.preset === presetName);
   });
-
-  // Sliders
-  sliderShadow.value = options.shadowKernelSize;
-  valShadow.textContent = options.shadowKernelSize;
-
-  sliderContrast.value = options.contrast;
-  valContrast.textContent = options.contrast;
-
-  sliderSharpen.value = options.sharpen;
-  valSharpen.textContent = options.sharpen;
-
-  const strengthPct = Math.round((options.dewarpStrength !== undefined ? options.dewarpStrength : 1.0) * 100);
-  sliderDewarp.value = strengthPct;
-  valDewarp.textContent = `${strengthPct}%`;
-
-  chkDewarpCurves.checked = !!options.dewarpCurves && strengthPct > 0;
-  chkRemoveFingers.checked = !!options.removeFingers;
 }
 
+function calculateCropCoordinates(imgWidth, imgHeight, ratios) {
+  const left = Math.max(0, Math.min(Math.round(imgWidth * (ratios?.left ?? 0)), imgWidth - 1));
+  const top = Math.max(0, Math.min(Math.round(imgHeight * (ratios?.top ?? 0)), imgHeight - 1));
+  const right = Math.max(left + 1, Math.min(Math.round(imgWidth * (ratios?.right ?? 1)), imgWidth));
+  const bottom = Math.max(top + 1, Math.min(Math.round(imgHeight * (ratios?.bottom ?? 1)), imgHeight));
 
+  return {
+    sx: left,
+    sy: top,
+    sWidth: right - left,
+    sHeight: bottom - top,
+    left,
+    top,
+    right,
+    bottom
+  };
+}
+
+function drawCropGuideOverlay(ctx, imgWidth, imgHeight, ratios) {
+  const coords = calculateCropCoordinates(imgWidth, imgHeight, ratios);
+
+  // 1. Semi-transparent dimming outside crop box
+  ctx.fillStyle = "rgba(0, 0, 0, 0.48)";
+  ctx.fillRect(0, 0, imgWidth, coords.top);
+  ctx.fillRect(0, coords.bottom, imgWidth, imgHeight - coords.bottom);
+  ctx.fillRect(0, coords.top, coords.left, coords.sHeight);
+  ctx.fillRect(coords.right, coords.top, imgWidth - coords.right, coords.sHeight);
+
+  // 2. Stroke bounding box
+  ctx.strokeStyle = "#efd430";
+  ctx.lineWidth = Math.max(3, Math.round(imgWidth / 250));
+  ctx.strokeRect(coords.left, coords.top, coords.sWidth, coords.sHeight);
+
+  // 3. Corner Accent Handles
+  const handleSize = Math.max(14, Math.round(imgWidth / 70));
+  ctx.fillStyle = "#efd430";
+  // TL
+  ctx.fillRect(coords.left - 2, coords.top - 2, handleSize, ctx.lineWidth);
+  ctx.fillRect(coords.left - 2, coords.top - 2, ctx.lineWidth, handleSize);
+  // TR
+  ctx.fillRect(coords.right - handleSize + 2, coords.top - 2, handleSize, ctx.lineWidth);
+  ctx.fillRect(coords.right - ctx.lineWidth + 2, coords.top - 2, ctx.lineWidth, handleSize);
+  // BL
+  ctx.fillRect(coords.left - 2, coords.bottom - ctx.lineWidth + 2, handleSize, ctx.lineWidth);
+  ctx.fillRect(coords.left - 2, coords.bottom - handleSize + 2, ctx.lineWidth, handleSize);
+  // BR
+  ctx.fillRect(coords.right - handleSize + 2, coords.bottom - ctx.lineWidth + 2, handleSize, ctx.lineWidth);
+  ctx.fillRect(coords.right - ctx.lineWidth + 2, coords.bottom - handleSize + 2, ctx.lineWidth, handleSize);
+
+  // 4. Dimension Badge
+  ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+  const badgeText = `${coords.sWidth} × ${coords.sHeight} px`;
+  ctx.font = `bold ${Math.max(12, Math.round(imgWidth / 55))}px sans-serif`;
+  const textWidth = ctx.measureText(badgeText).width;
+  const badgePadding = 8;
+  const badgeX = coords.left + 8;
+  const badgeY = coords.top + 8;
+  ctx.fillRect(badgeX, badgeY, textWidth + badgePadding * 2, 26);
+  ctx.fillStyle = "#efd430";
+  ctx.fillText(badgeText, badgeX + badgePadding, badgeY + 18);
+}
 
 // -------------------------------------------------------------
-// Canvas Rendering & In-Canvas Real-time Filter Pipeline
+// High-Definition Canvas Rendering
 // -------------------------------------------------------------
-async function renderCurrentPage() {
+function renderCurrentPage(resetZoom = false) {
   if (state.activeIndex < 0 || state.activeIndex >= state.pages.length) return;
   const page = state.pages[state.activeIndex];
+  const ctx = resultCanvas.getContext("2d");
 
-  if (state.viewMode === "preview") {
-    // Show straightened and cropped A4 scan result
-    if (!page.croppedCanvas) {
-      await processCropPage(page, true);
-    }
-    if (page.croppedCanvas) {
-      footerDimensions.textContent = `스캔 결과 해상도: ${page.croppedCanvas.width} × ${page.croppedCanvas.height} px (A4 규격)`;
-      drawEditorCanvas(page, page.croppedCanvas);
-    }
-    if (cornerSvgOverlay) cornerSvgOverlay.classList.add("hidden");
-    if (cornerPinsWrap) cornerPinsWrap.classList.add("hidden");
+  if (state.isCropGuideActive) {
+    // Show raw image with crop guide overlay
+    const source = page.rawImage;
+    if (!source) return;
+
+    resultCanvas.width = source.width;
+    resultCanvas.height = source.height;
+    ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+    ctx.drawImage(source, 0, 0);
+
+    drawCropGuideOverlay(ctx, source.width, source.height, page.options.cropRatios);
+
+    if (btnToggleCropGuide) btnToggleCropGuide.classList.add("active");
+    footerDimensions.textContent = `영역 조절 가이드: ${source.width} × ${source.height} px (슬라이더 또는 드래그로 조절)`;
   } else {
-    // Show 8-point warp interactive editor
-    footerDimensions.textContent = `원본 해상도: ${page.width} × ${page.height} px`;
-    if (!page.enhancedCanvas) {
-      await enhanceActivePage();
+    // Clean processed scan (or raw comparison)
+    if (btnToggleCropGuide) btnToggleCropGuide.classList.remove("active");
+    const source = state.isComparing ? page.rawImage : page.scanCanvas;
+    if (!source) return;
+
+    resultCanvas.width = source.width;
+    resultCanvas.height = source.height;
+    ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+    ctx.drawImage(source, 0, 0);
+
+    if (state.isComparing) {
+      footerDimensions.textContent = `원본 사진: ${page.width} × ${page.height} px (원본 비교 중)`;
     } else {
-      drawEditorCanvas(page, page.enhancedCanvas);
+      footerDimensions.textContent = `고화질 스캔본: ${page.width} × ${page.height} px (A4 규격)`;
     }
-    if (cornerSvgOverlay) cornerSvgOverlay.classList.remove("hidden");
-    if (cornerPinsWrap) cornerPinsWrap.classList.remove("hidden");
-    updateCornerPinsUI();
   }
 
-  fitZoomToContainer();
-}
-
-function drawEditorCanvas(page, targetCanvas) {
-  const source = targetCanvas || page.enhancedCanvas;
-  if (!source) return;
-  resultCanvas.width = source.width;
-  resultCanvas.height = source.height;
-  const resCtx = resultCanvas.getContext("2d");
-  resCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-  resCtx.drawImage(source, 0, 0);
-}
-
-async function switchViewMode(mode) {
-  state.viewMode = mode;
-  if (tabModeCrop) tabModeCrop.classList.toggle("active", mode === "crop");
-  if (tabModePreview) tabModePreview.classList.toggle("active", mode === "preview");
-
-  if (mode === "crop") {
-    if (viewportHintText) viewportHintText.innerHTML = `💡 핸들로 휜 테두리를 맞춘 후 <strong>[📄 펴진 결과 보기]</strong>로 확인하세요`;
-  } else {
-    if (viewportHintText) viewportHintText.innerHTML = `✨ 뒤틀기(Warp)가 적용되어 <strong>A4 평면으로 반듯하게 펴진 스캔본</strong>입니다`;
-  }
-
-  if (state.activeIndex >= 0) {
-    await renderCurrentPage();
-  }
-}
-
-if (tabModeCrop) tabModeCrop.addEventListener("click", () => switchViewMode("crop"));
-if (tabModePreview) tabModePreview.addEventListener("click", () => switchViewMode("preview"));
-
-let enhanceDebounceTimer = null;
-function debounceEnhance() {
-  clearTimeout(enhanceDebounceTimer);
-  enhanceDebounceTimer = setTimeout(() => {
-    enhanceActivePage();
-  }, 60);
-}
-
-async function enhanceActivePage() {
-  if (state.activeIndex < 0) return;
-  const page = state.pages[state.activeIndex];
-
-  try {
-    const offCanvas = document.createElement("canvas");
-    offCanvas.width = page.width;
-    offCanvas.height = page.height;
-    const ctx = offCanvas.getContext("2d");
-    ctx.drawImage(page.rawImage, 0, 0);
-    const imgData = ctx.getImageData(0, 0, page.width, page.height);
-
-    const res = await sendWorkerRequest("ENHANCE_FULL_IMAGE", {
-      imageData: imgData,
-      options: page.options
-    }, [imgData.data.buffer]);
-
-    const outData = res.imageData;
-    const pCanvas = document.createElement("canvas");
-    pCanvas.width = outData.width;
-    pCanvas.height = outData.height;
-    pCanvas.getContext("2d").putImageData(outData, 0, 0);
-
-    page.enhancedCanvas = pCanvas;
-    page.croppedCanvas = null; // Invalidate crop cache
-    page.status = "done";
-
-    if (state.viewMode === "preview") {
-      await processCropPage(page, false);
-    }
-    renderCurrentPage();
-  } catch (err) {
-    console.error("Enhance error:", err);
-    showToast("필터 보정 오류: " + err.message);
-  }
-}
-
-async function processCropPage(page, showSpinner = true) {
-  if (page.croppedCanvas) return;
-  if (showSpinner) showProcessing("자른 스캔본 생성 중...");
-
-  try {
-    const offCanvas = document.createElement("canvas");
-    offCanvas.width = page.width;
-    offCanvas.height = page.height;
-    const ctx = offCanvas.getContext("2d");
-    ctx.drawImage(page.rawImage, 0, 0);
-    const imgData = ctx.getImageData(0, 0, page.width, page.height);
-
-    const res = await sendWorkerRequest("PROCESS_IMAGE", {
-      imageData: imgData,
-      corners: page.corners,
-      curveHandles: page.curveHandles,
-      options: page.options
-    }, [imgData.data.buffer]);
-
-    if (res.isSplit) {
-      const p1Data = res.pages[0];
-      const pCanvas = document.createElement("canvas");
-      pCanvas.width = p1Data.width;
-      pCanvas.height = p1Data.height;
-      pCanvas.getContext("2d").putImageData(p1Data, 0, 0);
-      page.croppedCanvas = pCanvas;
-    } else {
-      const outData = res.imageData;
-      const pCanvas = document.createElement("canvas");
-      pCanvas.width = outData.width;
-      pCanvas.height = outData.height;
-      pCanvas.getContext("2d").putImageData(outData, 0, 0);
-      page.croppedCanvas = pCanvas;
-    }
-  } catch (err) {
-    console.error("Crop error:", err);
-    if (showSpinner) showToast("크롭 처리 오류: " + err.message);
-  } finally {
-    if (showSpinner) hideProcessing();
+  if (resetZoom) {
+    fitZoomToContainer();
   }
 }
 
@@ -580,219 +605,22 @@ function hideProcessing() {
 }
 
 // -------------------------------------------------------------
-// Interactive 8-Point Photoshop-Style Curved Warp UI & Visual Crop Scrim (DIM Mask)
-// -------------------------------------------------------------
-function updateCornerPinsUI() {
-  if (state.activeIndex < 0) return;
-  const page = state.pages[state.activeIndex];
-  const corners = page.corners;
-  if (!corners || corners.length < 4) return;
-  const [tl, tr, br, bl] = corners;
-
-  if (!page.curveHandles) {
-    page.curveHandles = getDefaultCurveHandles(corners);
-  }
-  const { tc, rc, bc, lc } = page.curveHandles;
-
-  // Set SVG coordinate system to match original image resolution
-  cornerSvgOverlay.setAttribute("viewBox", `0 0 ${page.width} ${page.height}`);
-
-  // Quadratic Bezier control points calculation
-  // P_ctrl = 2 * P_handle - 0.5 * (P0 + P1) so curve exactly passes through handle at t=0.5
-  const ctrlTop = {
-    x: 2 * tc.x - 0.5 * (tl.x + tr.x),
-    y: 2 * tc.y - 0.5 * (tl.y + tr.y)
-  };
-  const ctrlRight = {
-    x: 2 * rc.x - 0.5 * (tr.x + br.x),
-    y: 2 * rc.y - 0.5 * (tr.y + br.y)
-  };
-  const ctrlBottom = {
-    x: 2 * bc.x - 0.5 * (bl.x + br.x),
-    y: 2 * bc.y - 0.5 * (bl.y + br.y)
-  };
-  const ctrlLeft = {
-    x: 2 * lc.x - 0.5 * (tl.x + bl.x),
-    y: 2 * lc.y - 0.5 * (tl.y + bl.y)
-  };
-
-  // 4 Curved Edge Lines
-  if (edgeTop) edgeTop.setAttribute("d", `M ${tl.x} ${tl.y} Q ${ctrlTop.x} ${ctrlTop.y} ${tr.x} ${tr.y}`);
-  if (edgeRight) edgeRight.setAttribute("d", `M ${tr.x} ${tr.y} Q ${ctrlRight.x} ${ctrlRight.y} ${br.x} ${br.y}`);
-  if (edgeBottom) edgeBottom.setAttribute("d", `M ${br.x} ${br.y} Q ${ctrlBottom.x} ${ctrlBottom.y} ${bl.x} ${bl.y}`);
-  if (edgeLeft) edgeLeft.setAttribute("d", `M ${bl.x} ${bl.y} Q ${ctrlLeft.x} ${ctrlLeft.y} ${tl.x} ${tl.y}`);
-
-  // Outer dark scrim: Full image boundary + inner curved quad hole (evenodd)
-  if (cropScrimPath) {
-    const scrimD = `M 0 0 L ${page.width} 0 L ${page.width} ${page.height} L 0 ${page.height} Z ` +
-      `M ${tl.x} ${tl.y} ` +
-      `Q ${ctrlTop.x} ${ctrlTop.y} ${tr.x} ${tr.y} ` +
-      `Q ${ctrlRight.x} ${ctrlRight.y} ${br.x} ${br.y} ` +
-      `Q ${ctrlBottom.x} ${ctrlBottom.y} ${bl.x} ${bl.y} ` +
-      `Q ${ctrlLeft.x} ${ctrlLeft.y} ${tl.x} ${tl.y} Z`;
-    cropScrimPath.setAttribute("d", scrimD);
-  }
-
-  // Position 4 corner pins via CSS percentage
-  cornerPins.tl.style.left = `${(tl.x / page.width) * 100}%`;
-  cornerPins.tl.style.top = `${(tl.y / page.height) * 100}%`;
-  cornerPins.tr.style.left = `${(tr.x / page.width) * 100}%`;
-  cornerPins.tr.style.top = `${(tr.y / page.height) * 100}%`;
-  cornerPins.br.style.left = `${(br.x / page.width) * 100}%`;
-  cornerPins.br.style.top = `${(br.y / page.height) * 100}%`;
-  cornerPins.bl.style.left = `${(bl.x / page.width) * 100}%`;
-  cornerPins.bl.style.top = `${(bl.y / page.height) * 100}%`;
-
-  // Position 4 curve handles via CSS percentage
-  curvePins.tc.style.left = `${(tc.x / page.width) * 100}%`;
-  curvePins.tc.style.top = `${(tc.y / page.height) * 100}%`;
-  curvePins.rc.style.left = `${(rc.x / page.width) * 100}%`;
-  curvePins.rc.style.top = `${(rc.y / page.height) * 100}%`;
-  curvePins.bc.style.left = `${(bc.x / page.width) * 100}%`;
-  curvePins.bc.style.top = `${(bc.y / page.height) * 100}%`;
-  curvePins.lc.style.left = `${(lc.x / page.width) * 100}%`;
-  curvePins.lc.style.top = `${(lc.y / page.height) * 100}%`;
-}
-
-// 8 Pins Dragging Event Listeners
-Object.keys(allPins).forEach((pinKey) => {
-  const pinEl = allPins[pinKey];
-  if (!pinEl) return;
-  pinEl.addEventListener("mousedown", (e) => {
-    e.stopPropagation();
-    state.isDraggingPin = pinKey;
-    loupeWrap.classList.remove("hidden");
-    const pt = getPinCoord(pinKey);
-    if (pt) updateLoupe(pt, pinKey);
-  });
-});
-
-function getPinCoord(pinKey) {
-  if (state.activeIndex < 0) return null;
-  const page = state.pages[state.activeIndex];
-  if (["tl", "tr", "br", "bl"].includes(pinKey)) {
-    const idx = { tl: 0, tr: 1, br: 2, bl: 3 }[pinKey];
-    return page.corners[idx];
-  } else if (page.curveHandles && page.curveHandles[pinKey]) {
-    return page.curveHandles[pinKey];
-  }
-  return null;
-}
-
-window.addEventListener("mousemove", (e) => {
-  if (state.isDraggingPin !== null && state.activeIndex >= 0) {
-    const page = state.pages[state.activeIndex];
-    const rect = canvasWrapper.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    const scaleX = page.width / rect.width;
-    const scaleY = page.height / rect.height;
-
-    const rawX = Math.round(Math.max(0, Math.min(page.width, (e.clientX - rect.left) * scaleX)));
-    const rawY = Math.round(Math.max(0, Math.min(page.height, (e.clientY - rect.top) * scaleY)));
-
-    const pinKey = state.isDraggingPin;
-
-    if (["tl", "tr", "br", "bl"].includes(pinKey)) {
-      const idx = { tl: 0, tr: 1, br: 2, bl: 3 }[pinKey];
-      const oldPt = page.corners[idx];
-      const dx = rawX - oldPt.x;
-      const dy = rawY - oldPt.y;
-
-      page.corners[idx] = { x: rawX, y: rawY };
-
-      // Propagate proportional shift to adjacent curve handles so curvature is preserved
-      if (!page.curveHandles) page.curveHandles = getDefaultCurveHandles(page.corners);
-      if (pinKey === "tl") {
-        page.curveHandles.tc.x += Math.round(dx / 2);
-        page.curveHandles.tc.y += Math.round(dy / 2);
-        page.curveHandles.lc.x += Math.round(dx / 2);
-        page.curveHandles.lc.y += Math.round(dy / 2);
-      } else if (pinKey === "tr") {
-        page.curveHandles.tc.x += Math.round(dx / 2);
-        page.curveHandles.tc.y += Math.round(dy / 2);
-        page.curveHandles.rc.x += Math.round(dx / 2);
-        page.curveHandles.rc.y += Math.round(dy / 2);
-      } else if (pinKey === "br") {
-        page.curveHandles.bc.x += Math.round(dx / 2);
-        page.curveHandles.bc.y += Math.round(dy / 2);
-        page.curveHandles.rc.x += Math.round(dx / 2);
-        page.curveHandles.rc.y += Math.round(dy / 2);
-      } else if (pinKey === "bl") {
-        page.curveHandles.bc.x += Math.round(dx / 2);
-        page.curveHandles.bc.y += Math.round(dy / 2);
-        page.curveHandles.lc.x += Math.round(dx / 2);
-        page.curveHandles.lc.y += Math.round(dy / 2);
-      }
-    } else if (page.curveHandles && page.curveHandles[pinKey]) {
-      page.curveHandles[pinKey] = { x: rawX, y: rawY };
-    }
-
-    updateCornerPinsUI();
-    const currentPt = getPinCoord(pinKey);
-    if (currentPt) updateLoupe(currentPt, pinKey);
-  }
-});
-
-window.addEventListener("mouseup", () => {
-  if (state.isDraggingPin !== null) {
-    state.isDraggingPin = null;
-    loupeWrap.classList.add("hidden");
-
-    if (state.activeIndex >= 0) {
-      const page = state.pages[state.activeIndex];
-      page.croppedCanvas = null; // Invalidate crop cache
-
-      // Pre-compute straightened canvas in background
-      processCropPage(page, false).then(() => {
-        if (state.viewMode === "preview") {
-          renderCurrentPage();
-        }
-      });
-    }
-  }
-});
-
-function updateLoupe(point, pinKey) {
-  if (state.activeIndex < 0) return;
-  const page = state.pages[state.activeIndex];
-  const pinEl = allPins[pinKey];
-  if (!pinEl) return;
-
-  loupeWrap.style.left = pinEl.style.left;
-  loupeWrap.style.top = pinEl.style.top;
-
-  const sSize = 60;
-  loupeCtx.clearRect(0, 0, 140, 140);
-  const sourceImg = page.enhancedCanvas || page.rawImage;
-  loupeCtx.drawImage(
-    sourceImg,
-    point.x - sSize / 2,
-    point.y - sSize / 2,
-    sSize,
-    sSize,
-    0,
-    0,
-    140,
-    140
-  );
-}
-
-// -------------------------------------------------------------
-// Zoom & Fit Controls
+// Zoom & Pan Canvas Controls
 // -------------------------------------------------------------
 function fitZoomToContainer() {
   if (state.activeIndex < 0) return;
-  const containerW = canvasContainer.clientWidth - 40;
-  const containerH = canvasContainer.clientHeight - 40;
+  const containerW = canvasContainer.clientWidth - 50;
+  const containerH = canvasContainer.clientHeight - 50;
   const page = state.pages[state.activeIndex];
 
   const scale = Math.min(1.0, containerW / page.width, containerH / page.height);
-  setZoom(Math.max(0.1, scale));
+  setZoom(Math.max(0.12, scale));
 }
 
-function setZoom(val) {
-  state.zoom = Math.max(0.15, Math.min(3.0, val));
+function setZoom(val, pivotX = null, pivotY = null) {
+  const oldZoom = state.zoom;
+  const newZoom = Math.max(0.12, Math.min(3.5, val));
+  state.zoom = newZoom;
   zoomPercent.textContent = `${Math.round(state.zoom * 100)}%`;
 
   if (state.activeIndex >= 0) {
@@ -804,6 +632,13 @@ function setZoom(val) {
     canvasWrapper.style.height = `${dh}px`;
     resultCanvas.style.width = `${dw}px`;
     resultCanvas.style.height = `${dh}px`;
+
+    // Anchor scroll to pivot position
+    if (pivotX !== null && pivotY !== null && oldZoom > 0) {
+      const scaleRatio = newZoom / oldZoom;
+      canvasContainer.scrollLeft = Math.round((canvasContainer.scrollLeft + pivotX) * scaleRatio - pivotX);
+      canvasContainer.scrollTop = Math.round((canvasContainer.scrollTop + pivotY) * scaleRatio - pivotY);
+    }
   }
 }
 
@@ -813,289 +648,398 @@ btnZoomFit.addEventListener("click", () => fitZoomToContainer());
 
 canvasContainer.addEventListener("wheel", (e) => {
   e.preventDefault();
-  if (e.deltaY < 0) {
-    setZoom(state.zoom * 1.1);
-  } else {
-    setZoom(state.zoom / 1.1);
+  const rect = canvasContainer.getBoundingClientRect();
+  const pivotX = e.clientX - rect.left;
+  const pivotY = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  setZoom(state.zoom * factor, pivotX, pivotY);
+}, { passive: false });
+
+// Pan via Middle-click, Right-click, or Space+Drag
+let isSpacePressed = false;
+
+canvasContainer.addEventListener("mousedown", (e) => {
+  const isPanTrigger = e.button === 1 || e.button === 2 || (e.button === 0 && isSpacePressed);
+  if (isPanTrigger) {
+    state.isPanning = true;
+    state.panStart = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: canvasContainer.scrollLeft,
+      scrollTop: canvasContainer.scrollTop
+    };
+    canvasContainer.style.cursor = "grabbing";
+    e.preventDefault();
+    return;
+  }
+
+  // Left click when Crop Guide is active -> Start drag-box selection
+  if (e.button === 0 && state.isCropGuideActive && state.activeIndex >= 0) {
+    const rect = resultCanvas.getBoundingClientRect();
+    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      state.isCropDragging = true;
+      const scaleX = resultCanvas.width / rect.width;
+      const scaleY = resultCanvas.height / rect.height;
+      state.cropDragStart = {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+      e.preventDefault();
+    }
+  }
+});
+
+canvasContainer.addEventListener("contextmenu", (e) => {
+  if (state.isPanning || isSpacePressed) {
+    e.preventDefault();
+  }
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (state.isPanning) {
+    const dx = e.clientX - state.panStart.x;
+    const dy = e.clientY - state.panStart.y;
+    canvasContainer.scrollLeft = state.panStart.scrollLeft - dx;
+    canvasContainer.scrollTop = state.panStart.scrollTop - dy;
+    return;
+  }
+
+  if (state.isCropDragging && state.activeIndex >= 0) {
+    const page = state.pages[state.activeIndex];
+    const rect = resultCanvas.getBoundingClientRect();
+    const scaleX = resultCanvas.width / rect.width;
+    const scaleY = resultCanvas.height / rect.height;
+
+    const curX = Math.max(0, Math.min(resultCanvas.width, (e.clientX - rect.left) * scaleX));
+    const curY = Math.max(0, Math.min(resultCanvas.height, (e.clientY - rect.top) * scaleY));
+
+    const minX = Math.min(state.cropDragStart.x, curX);
+    const maxX = Math.max(state.cropDragStart.x, curX);
+    const minY = Math.min(state.cropDragStart.y, curY);
+    const maxY = Math.max(state.cropDragStart.y, curY);
+
+    if (maxX - minX > 20 && maxY - minY > 20) {
+      page.options.cropRatios = {
+        left: minX / resultCanvas.width,
+        right: maxX / resultCanvas.width,
+        top: minY / resultCanvas.height,
+        bottom: maxY / resultCanvas.height
+      };
+      updateCropSlidersUI(page.options.cropRatios);
+      renderCurrentPage(false);
+    }
+  }
+});
+
+window.addEventListener("mouseup", async () => {
+  if (state.isPanning) {
+    state.isPanning = false;
+    canvasContainer.style.cursor = isSpacePressed ? "grab" : "";
+  }
+
+  if (state.isCropDragging && state.activeIndex >= 0) {
+    state.isCropDragging = false;
+    const page = state.pages[state.activeIndex];
+    showProcessing("스캔 영역 재적용 중...");
+    await reprocessPageFilter(page);
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
+  }
+});
+
+// Compare Listeners
+if (btnHoldCompare) {
+  const startCompare = (e) => {
+    e.preventDefault();
+    if (state.activeIndex < 0) return;
+    state.isComparing = true;
+    btnHoldCompare.classList.add("active");
+    renderCurrentPage(false);
+  };
+  const stopCompare = (e) => {
+    e.preventDefault();
+    if (!state.isComparing) return;
+    state.isComparing = false;
+    btnHoldCompare.classList.remove("active");
+    renderCurrentPage(false);
+  };
+
+  btnHoldCompare.addEventListener("mousedown", startCompare);
+  btnHoldCompare.addEventListener("mouseup", stopCompare);
+  btnHoldCompare.addEventListener("mouseleave", stopCompare);
+  btnHoldCompare.addEventListener("touchstart", startCompare, { passive: false });
+  btnHoldCompare.addEventListener("touchend", stopCompare);
+}
+
+window.addEventListener("keydown", (e) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName : "";
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(activeTag)) return;
+
+  if (e.code === "Space" && !e.repeat && state.activeIndex >= 0) {
+    e.preventDefault();
+    isSpacePressed = true;
+    if (canvasContainer) canvasContainer.style.cursor = "grab";
+    state.isComparing = true;
+    if (btnHoldCompare) btnHoldCompare.classList.add("active");
+    renderCurrentPage(false);
+  }
+
+  if (e.code === "KeyC" && !e.repeat && state.activeIndex >= 0) {
+    state.isComparing = true;
+    if (btnHoldCompare) btnHoldCompare.classList.add("active");
+    renderCurrentPage(false);
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName : "";
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(activeTag)) return;
+
+  if (e.code === "Space") {
+    isSpacePressed = false;
+    if (!state.isPanning && canvasContainer) canvasContainer.style.cursor = "";
+    if (state.isComparing) {
+      state.isComparing = false;
+      if (btnHoldCompare) btnHoldCompare.classList.remove("active");
+      renderCurrentPage(false);
+    }
+  }
+
+  if (e.code === "KeyC") {
+    state.isComparing = false;
+    if (btnHoldCompare) btnHoldCompare.classList.remove("active");
+    renderCurrentPage(false);
   }
 });
 
 // -------------------------------------------------------------
-// Sidebar Parameter Listeners
+// Sidebar Parameter Listeners & Batch Apply
 // -------------------------------------------------------------
 [btnModeBw, btnModeGray, btnModeColor].forEach((btn) => {
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     if (state.activeIndex < 0) return;
     const mode = btn.dataset.mode;
+    state.options.mode = mode;
     state.pages[state.activeIndex].options.mode = mode;
-    state.defaultOptions.mode = mode;
 
     [btnModeBw, btnModeGray, btnModeColor].forEach((b) => b.classList.toggle("active", b === btn));
-    enhanceActivePage();
+
+    // Re-enhance active page
+    showProcessing("스캔 필터 적용 중...");
+    await reprocessPageFilter(state.pages[state.activeIndex]);
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
   });
 });
 
-sliderShadow.addEventListener("input", (e) => {
-  valShadow.textContent = e.target.value;
-  if (state.activeIndex >= 0) {
-    state.pages[state.activeIndex].options.shadowKernelSize = parseInt(e.target.value, 10);
-    state.defaultOptions.shadowKernelSize = parseInt(e.target.value, 10);
-    debounceEnhance();
-  }
-});
+async function reprocessPageFilter(page) {
+  const offCanvas = document.createElement("canvas");
+  offCanvas.width = page.rawImage.width || page.rawImage.naturalWidth;
+  offCanvas.height = page.rawImage.height || page.rawImage.naturalHeight;
+  const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(page.rawImage, 0, 0);
+  const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
 
-sliderContrast.addEventListener("input", (e) => {
-  valContrast.textContent = e.target.value;
-  if (state.activeIndex >= 0) {
-    state.pages[state.activeIndex].options.contrast = parseFloat(e.target.value);
-    state.defaultOptions.contrast = parseFloat(e.target.value);
-    debounceEnhance();
-  }
-});
+  const res = await sendWorkerRequest("PROCESS_AUTO_PAGE", {
+    imageData: imgData,
+    options: page.options
+  }, [imgData.data.buffer]);
 
-sliderSharpen.addEventListener("input", (e) => {
-  valSharpen.textContent = e.target.value;
-  if (state.activeIndex >= 0) {
-    state.pages[state.activeIndex].options.sharpen = parseFloat(e.target.value);
-    state.defaultOptions.sharpen = parseFloat(e.target.value);
-    debounceEnhance();
-  }
-});
+  const scanCanvas = document.createElement("canvas");
+  scanCanvas.width = res.imageData.width;
+  scanCanvas.height = res.imageData.height;
+  scanCanvas.getContext("2d").putImageData(res.imageData, 0, 0);
 
-sliderDewarp.addEventListener("input", (e) => {
-  const pct = parseInt(e.target.value, 10);
-  valDewarp.textContent = `${pct}%`;
-  if (state.activeIndex >= 0) {
+  page.scanCanvas = scanCanvas;
+  page.width = scanCanvas.width;
+  page.height = scanCanvas.height;
+  page.thumbUrl = createThumbnail(scanCanvas);
+}
+
+// -------------------------------------------------------------
+// Crop Area Controls & Presets (Workspace Style)
+// -------------------------------------------------------------
+const CROP_PRESETS = {
+  full: { top: 0, bottom: 1.0, left: 0, right: 1.0 },
+  margin: { top: 0.02, bottom: 0.98, left: 0.02, right: 0.98 },
+  text: { top: 0.10, bottom: 0.90, left: 0.05, right: 0.95 }
+};
+
+if (btnToggleCropGuide) {
+  btnToggleCropGuide.addEventListener("click", () => {
+    state.isCropGuideActive = !state.isCropGuideActive;
+    renderCurrentPage(false);
+  });
+}
+
+[btnCropFull, btnCropMargin, btnCropText].forEach((btn) => {
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (state.activeIndex < 0) return;
+    const presetKey = btn.dataset.preset;
+    const ratios = CROP_PRESETS[presetKey];
+    if (!ratios) return;
+
     const page = state.pages[state.activeIndex];
-    page.options.dewarpStrength = pct / 100;
-    page.options.dewarpCurves = pct > 0;
-    state.defaultOptions.dewarpStrength = pct / 100;
-    state.defaultOptions.dewarpCurves = pct > 0;
-    chkDewarpCurves.checked = pct > 0;
-    page.enhancedCanvas = null;
-    page.croppedCanvas = null;
-    debounceEnhance();
-  }
+    page.options.cropRatios = { ...ratios };
+    state.options.cropRatios = { ...ratios };
+
+    updateCropSlidersUI(ratios, presetKey);
+
+    showProcessing("스캔 영역 재적용 중...");
+    await reprocessPageFilter(page);
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
+  });
 });
 
-chkDewarpCurves.addEventListener("change", (e) => {
+function handleCropSliderInput() {
+  if (state.activeIndex < 0) return;
+  const page = state.pages[state.activeIndex];
+
+  const top = parseFloat(rangeCropTop.value) / 100;
+  const bottom = parseFloat(rangeCropBottom.value) / 100;
+  const left = parseFloat(rangeCropLeft.value) / 100;
+  const right = parseFloat(rangeCropRight.value) / 100;
+
+  const ratios = { top, bottom, left, right };
+  page.options.cropRatios = ratios;
+  state.options.cropRatios = ratios;
+
+  valCropTop.textContent = `${(top * 100).toFixed(1)}%`;
+  valCropBottom.textContent = `${(bottom * 100).toFixed(1)}%`;
+  valCropLeft.textContent = `${(left * 100).toFixed(1)}%`;
+  valCropRight.textContent = `${(right * 100).toFixed(1)}%`;
+
+  [btnCropFull, btnCropMargin, btnCropText].forEach((b) => b && b.classList.remove("active"));
+
+  // Show crop guide live so user sees boundaries clearly
+  state.isCropGuideActive = true;
+  renderCurrentPage(false);
+}
+
+let cropDebounceTimer = null;
+function handleCropSliderChange() {
+  if (state.activeIndex < 0) return;
+  const page = state.pages[state.activeIndex];
+
+  clearTimeout(cropDebounceTimer);
+  cropDebounceTimer = setTimeout(async () => {
+    showProcessing("스캔 영역 재적용 중...");
+    await reprocessPageFilter(page);
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
+  }, 200);
+}
+
+[rangeCropTop, rangeCropBottom, rangeCropLeft, rangeCropRight].forEach((slider) => {
+  if (!slider) return;
+  slider.addEventListener("input", handleCropSliderInput);
+  slider.addEventListener("change", handleCropSliderChange);
+});
+
+if (btnApplyCropAll) {
+  btnApplyCropAll.addEventListener("click", async () => {
+    if (state.pages.length === 0 || state.activeIndex < 0) return;
+    const currentRatios = state.pages[state.activeIndex].options.cropRatios;
+
+    showProcessing(`전체 ${state.pages.length}개 페이지에 영역 일괄 적용 중...`);
+    for (const page of state.pages) {
+      page.options.cropRatios = { ...currentRatios };
+      await reprocessPageFilter(page);
+    }
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
+  });
+}
+
+chkAutoSplit.addEventListener("change", (e) => {
+  state.options.autoSplitSpread = e.target.checked;
+});
+
+chkDewarpCurves.addEventListener("change", async (e) => {
+  state.options.dewarpCurves = e.target.checked;
   if (state.activeIndex >= 0) {
-    const page = state.pages[state.activeIndex];
-    page.options.dewarpCurves = e.target.checked;
-    const strength = e.target.checked ? 1.0 : 0.0;
-    page.options.dewarpStrength = strength;
-    state.defaultOptions.dewarpCurves = e.target.checked;
-    state.defaultOptions.dewarpStrength = strength;
-
-    sliderDewarp.value = Math.round(strength * 100);
-    valDewarp.textContent = `${sliderDewarp.value}%`;
-
-    page.enhancedCanvas = null;
-    page.croppedCanvas = null;
-    debounceEnhance();
+    state.pages[state.activeIndex].options.dewarpCurves = e.target.checked;
+    showProcessing("굴곡 평탄화 재적용 중...");
+    await reprocessPageFilter(state.pages[state.activeIndex]);
+    hideProcessing();
+    renderCurrentPage(false);
+    renderFilmstrip();
   }
 });
-
-chkRemoveFingers.addEventListener("change", (e) => {
-  if (state.activeIndex >= 0) {
-    const page = state.pages[state.activeIndex];
-    page.options.removeFingers = e.target.checked;
-    state.defaultOptions.removeFingers = e.target.checked;
-    page.croppedCanvas = null;
-  }
-});
-
 
 btnRotateLeft.addEventListener("click", () => rotateActivePage(-90));
 btnRotateRight.addEventListener("click", () => rotateActivePage(90));
 
-function rotateActivePage(deg) {
+async function rotateActivePage(deg) {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
+  showProcessing("페이지 회전 중...");
 
-  // Rotate rawImage onto an offscreen canvas
   const canvas = document.createElement("canvas");
   const is90or270 = Math.abs(deg) === 90 || Math.abs(deg) === 270;
-  canvas.width = is90or270 ? page.height : page.width;
-  canvas.height = is90or270 ? page.width : page.height;
+  canvas.width = is90or270 ? page.scanCanvas.height : page.scanCanvas.width;
+  canvas.height = is90or270 ? page.scanCanvas.width : page.scanCanvas.height;
 
   const ctx = canvas.getContext("2d");
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate((deg * Math.PI) / 180);
-  ctx.drawImage(page.rawImage, -page.width / 2, -page.height / 2);
+  ctx.drawImage(page.scanCanvas, -page.scanCanvas.width / 2, -page.scanCanvas.height / 2);
 
-  const newImg = new Image();
-  newImg.onload = async () => {
-    page.rawImage = newImg;
-    page.width = newImg.width;
-    page.height = newImg.height;
-    page.corners = getDefaultCorners(page.width, page.height);
-    page.curveHandles = getDefaultCurveHandles(page.corners);
-    page.enhancedCanvas = null;
-    page.croppedCanvas = null;
-    await renderActivePage();
-  };
-  newImg.src = canvas.toDataURL("image/png");
+  page.scanCanvas = canvas;
+  page.width = canvas.width;
+  page.height = canvas.height;
+  page.thumbUrl = createThumbnail(canvas);
+
+  hideProcessing();
+  renderCurrentPage(true);
+  renderFilmstrip();
 }
 
-btnAutoCorners.addEventListener("click", async () => {
+btnSplitSpread.addEventListener("click", async () => {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
-  showProcessing("모서리 자동 재감지 중...");
+  showProcessing("페이지를 좌/우 2장으로 분할 중...");
 
   try {
-    const offCanvas = document.createElement("canvas");
-    offCanvas.width = page.width;
-    offCanvas.height = page.height;
-    const ctx = offCanvas.getContext("2d");
-    ctx.drawImage(page.rawImage, 0, 0);
-    const imgData = ctx.getImageData(0, 0, page.width, page.height);
+    const rawImg = page.rawImage;
+    const { leftPage, rightPage } = await splitAndProcessSpread(rawImg, page.name);
 
-    const res = await sendWorkerRequest("DETECT_CORNERS", { imageData: imgData }, [imgData.data.buffer]);
-    page.corners = res.corners;
-    page.curveHandles = getDefaultCurveHandles(page.corners);
-    page.croppedCanvas = null;
-    updateCornerPinsUI();
-    showToast("모서리가 자동으로 감지되었습니다.");
+    const idx = state.activeIndex;
+    state.pages.splice(idx, 1, leftPage, rightPage);
+
+    updateUIState();
+    selectPage(idx);
+    showToast("페이지가 좌/우 2장으로 분할되었습니다.");
   } catch (err) {
-    showToast("모서리 감지 오류: " + err.message);
+    console.error("Split error:", err);
+    showToast("분할 오류: " + err.message);
   } finally {
     hideProcessing();
   }
 });
 
-btnSplitSpread.addEventListener("click", () => splitCurrentSpreadPage());
-
-async function splitCurrentSpreadPage() {
-  if (state.activeIndex < 0) return;
-  const page = state.pages[state.activeIndex];
-  showProcessing("펼친 양면 책을 왼쪽/오른쪽 2장으로 분할 중...");
-
-  try {
-    const offCanvas = document.createElement("canvas");
-    offCanvas.width = page.width;
-    offCanvas.height = page.height;
-    const ctx = offCanvas.getContext("2d");
-    ctx.drawImage(page.rawImage, 0, 0);
-    const imgData = ctx.getImageData(0, 0, page.width, page.height);
-
-    const res = await sendWorkerRequest("SPLIT_SPREAD", { imageData: imgData }, [imgData.data.buffer]);
-    const { leftData, rightData } = res;
-
-    // Convert leftData to Image
-    const leftCanvas = document.createElement("canvas");
-    leftCanvas.width = leftData.width;
-    leftCanvas.height = leftData.height;
-    leftCanvas.getContext("2d").putImageData(leftData, 0, 0);
-
-    const leftImg = new Image();
-    const leftLoadPromise = new Promise((resolve, reject) => {
-      leftImg.onload = resolve;
-      leftImg.onerror = reject;
-    });
-    leftImg.src = leftCanvas.toDataURL("image/png");
-    await leftLoadPromise;
-
-    // Convert rightData to Image
-    const rightCanvas = document.createElement("canvas");
-    rightCanvas.width = rightData.width;
-    rightCanvas.height = rightData.height;
-    rightCanvas.getContext("2d").putImageData(rightData, 0, 0);
-
-    const rightImg = new Image();
-    const rightLoadPromise = new Promise((resolve, reject) => {
-      rightImg.onload = resolve;
-      rightImg.onerror = reject;
-    });
-    rightImg.src = rightCanvas.toDataURL("image/png");
-    await rightLoadPromise;
-
-    // Auto detect corners for both separated pages
-    let leftCorners = getDefaultCorners(leftImg.width, leftImg.height);
-    let rightCorners = getDefaultCorners(rightImg.width, rightImg.height);
-
-    try {
-      const lData = leftCanvas.getContext("2d").getImageData(0, 0, leftData.width, leftData.height);
-      const lRes = await sendWorkerRequest("DETECT_CORNERS", { imageData: lData }, [lData.data.buffer]);
-      if (lRes && lRes.corners) leftCorners = lRes.corners;
-    } catch (e) {
-      console.warn("Left corner detection fallback:", e);
-    }
-
-    try {
-      const rData = rightCanvas.getContext("2d").getImageData(0, 0, rightData.width, rightData.height);
-      const rRes = await sendWorkerRequest("DETECT_CORNERS", { imageData: rData }, [rData.data.buffer]);
-      if (rRes && rRes.corners) rightCorners = rRes.corners;
-    } catch (e) {
-      console.warn("Right corner detection fallback:", e);
-    }
-
-    const baseName = page.name.replace(/\s*\([0-9]+\/[0-9]+\s*(좌|우)\)$/, "");
-
-    const leftPage = {
-      name: `${baseName} (좌)`,
-      rawImage: leftImg,
-      width: leftImg.width,
-      height: leftImg.height,
-      corners: leftCorners,
-      curveHandles: getDefaultCurveHandles(leftCorners),
-      options: { ...page.options, isDoublePage: false, dewarpCurves: true },
-      enhancedCanvas: null,
-      croppedCanvas: null,
-      thumbUrl: leftCanvas.toDataURL("image/jpeg", 0.75),
-      status: "ready"
-    };
-
-    const rightPage = {
-      name: `${baseName} (우)`,
-      rawImage: rightImg,
-      width: rightImg.width,
-      height: rightImg.height,
-      corners: rightCorners,
-      curveHandles: getDefaultCurveHandles(rightCorners),
-      options: { ...page.options, isDoublePage: false, dewarpCurves: true },
-      enhancedCanvas: null,
-      croppedCanvas: null,
-      thumbUrl: rightCanvas.toDataURL("image/jpeg", 0.75),
-      status: "ready"
-    };
-
-    const currentIndex = state.activeIndex;
-    state.pages.splice(currentIndex, 1, leftPage, rightPage);
-
-    updateUIState();
-    selectPage(currentIndex);
-    showToast("양면 페이지를 왼쪽/오른쪽 2장으로 분할했습니다!");
-  } catch (err) {
-    console.error("Split page error:", err);
-    showToast("양면 분할 중 오류가 발생했습니다: " + err.message);
-  } finally {
-    hideProcessing();
-  }
-}
-
 btnApplyAll.addEventListener("click", async () => {
   if (state.pages.length === 0) return;
-  const currentOptions = state.pages[state.activeIndex].options;
+  const currentMode = state.options.mode;
 
-  state.pages.forEach((p) => {
-    p.options = { ...currentOptions };
-    p.enhancedCanvas = null;
-    p.croppedCanvas = null;
-  });
-
-  showToast("모든 페이지에 설정을 일괄 적용합니다.");
-  showProcessing("전체 페이지 일괄 보정 중...");
-
+  showProcessing("전체 페이지 필터 일괄 적용 중...");
   for (let i = 0; i < state.pages.length; i++) {
-    processingStatusText.textContent = `전체 처리 중 (${i + 1}/${state.pages.length})...`;
-    state.activeIndex = i;
-    await enhanceActivePage();
+    processingStatusText.textContent = `전체 적용 중 (${i + 1}/${state.pages.length})...`;
+    state.pages[i].options.mode = currentMode;
+    await reprocessPageFilter(state.pages[i]);
   }
 
   hideProcessing();
-  showToast("전체 페이지 보정이 완료되었습니다!");
+  renderCurrentPage(false);
   renderFilmstrip();
+  showToast(`모든 페이지에 [${currentMode === "bw" ? "선명한 흑백" : currentMode === "grayscale" ? "그레이스케일" : "컬러"}] 필터가 일괄 적용되었습니다.`);
 });
 
 // -------------------------------------------------------------
@@ -1147,11 +1091,11 @@ btnClearAll.addEventListener("click", () => {
 });
 
 // -------------------------------------------------------------
-// Export: PDF & ZIP & Clipboard (Applies Crop on Export)
+// Export: PDF & ZIP & Clipboard
 // -------------------------------------------------------------
 btnExportPdf.addEventListener("click", async () => {
   if (state.pages.length === 0) return;
-  showProcessing("고화질 PDF 문서 생성 중...");
+  showProcessing("고화질 A4 PDF 문서 생성 중...");
 
   try {
     const { PDFDocument } = PDFLib;
@@ -1164,11 +1108,7 @@ btnExportPdf.addEventListener("click", async () => {
       processingStatusText.textContent = `PDF 페이지 생성 중 (${i + 1}/${state.pages.length})...`;
       const page = state.pages[i];
 
-      if (!page.croppedCanvas) {
-        await processCropPage(page);
-      }
-
-      const blob = await new Promise((res) => page.croppedCanvas.toBlob(res, "image/jpeg", 0.92));
+      const blob = await new Promise((res) => page.scanCanvas.toBlob(res, "image/jpeg", 0.92));
       const arrayBuffer = await blob.arrayBuffer();
       const embeddedJpg = await pdfDoc.embedJpg(arrayBuffer);
 
@@ -1203,10 +1143,10 @@ btnExportPdf.addEventListener("click", async () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(downloadUrl);
 
-    showToast("PDF 문서가 다운로드되었습니다.");
+    showToast("PDF 문서 저장이 완료되었습니다.");
   } catch (err) {
     console.error("PDF export error:", err);
-    showToast("PDF 생성 중 오류가 발생했습니다: " + err.message);
+    showToast("PDF 생성 오류: " + err.message);
   } finally {
     hideProcessing();
   }
@@ -1214,7 +1154,7 @@ btnExportPdf.addEventListener("click", async () => {
 
 btnExportZip.addEventListener("click", async () => {
   if (state.pages.length === 0) return;
-  showProcessing("ZIP 압축 생성 중...");
+  showProcessing("ZIP 이미지 압축 파일 생성 중...");
 
   try {
     const zip = new JSZip();
@@ -1223,11 +1163,7 @@ btnExportZip.addEventListener("click", async () => {
       processingStatusText.textContent = `이미지 압축 중 (${i + 1}/${state.pages.length})...`;
       const page = state.pages[i];
 
-      if (!page.croppedCanvas) {
-        await processCropPage(page);
-      }
-
-      const blob = await new Promise((res) => page.croppedCanvas.toBlob(res, "image/png"));
+      const blob = await new Promise((res) => page.scanCanvas.toBlob(res, "image/png"));
       const fileName = `scan_page_${String(i + 1).padStart(3, "0")}.png`;
       zip.file(fileName, blob);
     }
@@ -1243,10 +1179,10 @@ btnExportZip.addEventListener("click", async () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(downloadUrl);
 
-    showToast("ZIP 압축 파일이 다운로드되었습니다.");
+    showToast("ZIP 압축 다운로드가 완료되었습니다.");
   } catch (err) {
     console.error("ZIP export error:", err);
-    showToast("ZIP 생성 중 오류: " + err.message);
+    showToast("ZIP 생성 오류: " + err.message);
   } finally {
     hideProcessing();
   }
@@ -1255,17 +1191,14 @@ btnExportZip.addEventListener("click", async () => {
 btnCopyClipboard.addEventListener("click", async () => {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
-  if (!page.croppedCanvas) {
-    await processCropPage(page);
-  }
-  if (!page.croppedCanvas) return;
+  if (!page.scanCanvas) return;
 
   try {
-    const blob = await new Promise((res) => page.croppedCanvas.toBlob(res, "image/png"));
+    const blob = await new Promise((res) => page.scanCanvas.toBlob(res, "image/png"));
     await navigator.clipboard.write([
       new ClipboardItem({ "image/png": blob })
     ]);
-    showToast("자른 스캔 이미지가 클립보드에 복사되었습니다!");
+    showToast("현재 페이지가 클립보드에 복사되었습니다!");
   } catch (err) {
     console.error("Clipboard copy error:", err);
     showToast("클립보드 복사 실패: " + err.message);

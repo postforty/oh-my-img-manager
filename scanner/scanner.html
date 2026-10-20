@@ -97,7 +97,36 @@
           </div>
         </section>
 
-        <!-- Pipeline Adjustment Sliders -->
+        <!-- Smart Auto Scan Options -->
+        <section class="control-section">
+          <h2 class="section-title">
+            <svg class="title-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            </svg>
+            스마트 자동 스캔 설정
+          </h2>
+          <div class="toggle-list">
+            <label class="toggle-item">
+              <input type="checkbox" id="chkAutoSplit" checked />
+              <span class="toggle-switch"></span>
+              <span class="toggle-label">
+                <strong>펼친 양면 자동 2장 분할</strong>
+                <small>가로형 책 사진을 좌/우 2페이지로 자동 분할</small>
+              </span>
+            </label>
+
+            <label class="toggle-item">
+              <input type="checkbox" id="chkDewarpCurves" checked />
+              <span class="toggle-switch"></span>
+              <span class="toggle-label">
+                <strong>책등 굴곡 평탄화 (Curve Dewarp)</strong>
+                <small>책 펼침으로 인해 휘어진 글자 줄을 반듯하게 펴기</small>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Crop Area & Margins (Workspace style) -->
         <section class="control-section">
           <h2 class="section-title">
             <svg class="title-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -107,42 +136,65 @@
               <line x1="12" y1="8" x2="12" y2="3"></line>
               <line x1="20" y1="21" x2="20" y2="16"></line>
               <line x1="20" y1="12" x2="20" y2="3"></line>
+              <line x1="1" y1="14" x2="7" y2="14"></line>
+              <line x1="9" y1="8" x2="15" y2="8"></line>
+              <line x1="17" y1="16" x2="23" y2="16"></line>
             </svg>
-            스캔 정밀 보정
+            스캔 영역 직접 조절 (%)
           </h2>
+          <div class="crop-preset-grid">
+            <button class="preset-btn active" data-preset="full" id="btnCropFull">
+              <span class="preset-name">전체 (100%)</span>
+              <span class="preset-desc">페이지 번호·여백 보존</span>
+            </button>
+            <button class="preset-btn" data-preset="margin" id="btnCropMargin">
+              <span class="preset-name">여백 정리 (96%)</span>
+              <span class="preset-desc">외곽 테두리 2% 다듬기</span>
+            </button>
+            <button class="preset-btn" data-preset="text" id="btnCropText">
+              <span class="preset-name">본문 집중</span>
+              <span class="preset-desc">텍스트 중심 크롭</span>
+            </button>
+          </div>
+
           <div class="slider-group">
             <div class="slider-item">
-              <div class="slider-header">
-                <label for="sliderShadow">그림자 제거 감도</label>
-                <span class="slider-val" id="valShadow">31</span>
+              <div class="slider-label">
+                <span>상단 (Top)</span>
+                <span class="slider-value" id="valCropTop">0.0%</span>
               </div>
-              <input type="range" id="sliderShadow" min="15" max="51" step="2" value="31" class="custom-range" />
+              <input type="range" id="rangeCropTop" min="0" max="45" step="0.5" value="0" />
             </div>
 
             <div class="slider-item">
-              <div class="slider-header">
-                <label for="sliderContrast">명암 대비</label>
-                <span class="slider-val" id="valContrast">1.2</span>
+              <div class="slider-label">
+                <span>하단 (Bottom)</span>
+                <span class="slider-value" id="valCropBottom">100.0%</span>
               </div>
-              <input type="range" id="sliderContrast" min="0.8" max="2.0" step="0.1" value="1.2" class="custom-range" />
+              <input type="range" id="rangeCropBottom" min="55" max="100" step="0.5" value="100" />
             </div>
 
             <div class="slider-item">
-              <div class="slider-header">
-                <label for="sliderSharpen">텍스트 선명화 (샤프닝)</label>
-                <span class="slider-val" id="valSharpen">1.2</span>
+              <div class="slider-label">
+                <span>좌측 (Left)</span>
+                <span class="slider-value" id="valCropLeft">0.0%</span>
               </div>
-              <input type="range" id="sliderSharpen" min="0.0" max="2.5" step="0.1" value="1.2" class="custom-range" />
+              <input type="range" id="rangeCropLeft" min="0" max="45" step="0.5" value="0" />
             </div>
 
             <div class="slider-item">
-              <div class="slider-header">
-                <label for="sliderDewarp">글자 굴곡 평탄화 강도</label>
-                <span class="slider-val" id="valDewarp">100%</span>
+              <div class="slider-label">
+                <span>우측 (Right)</span>
+                <span class="slider-value" id="valCropRight">100.0%</span>
               </div>
-              <input type="range" id="sliderDewarp" min="0" max="200" step="5" value="100" class="custom-range" />
+              <input type="range" id="rangeCropRight" min="55" max="100" step="0.5" value="100" />
             </div>
           </div>
+
+          <button id="btnApplyCropAll" class="btn btn-outline btn-full btn-small" style="margin-top: 10px;" title="현재 설정된 크롭 영역을 모든 페이지에 일괄 적용">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            <span>현재 영역 전체 페이지 일괄 적용</span>
+          </button>
         </section>
 
         <!-- Smart Utilities -->
@@ -166,51 +218,24 @@
               </svg>
               <span>우 90°</span>
             </button>
-            <button id="btnAutoCorners" class="btn btn-secondary btn-util" title="문서 4개 모서리 다시 자동 감지">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"></path>
-              </svg>
-              <span>모서리 자동 재감지</span>
-            </button>
-            <button id="btnSplitSpread" class="btn btn-secondary btn-util" title="펼친 양면 책 사진을 왼쪽/오른쪽 2장으로 분할">
+            <button id="btnSplitSpread" class="btn btn-secondary btn-util btn-full-util" title="선택한 페이지를 좌/우 2장으로 수동 분할">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="4" width="20" height="16" rx="2"></rect>
                 <line x1="12" y1="4" x2="12" y2="20" stroke-dasharray="2 2"></line>
               </svg>
-              <span>펼친 양면 2장 분할</span>
+              <span>현재 페이지 2장 분할</span>
             </button>
-          </div>
-
-          <!-- Toggles -->
-          <div class="toggle-list">
-            <label class="toggle-item">
-              <input type="checkbox" id="chkDewarpCurves" checked />
-              <span class="toggle-switch"></span>
-              <span class="toggle-label">
-                <strong>텍스트 굴곡 평탄화 (Curve Dewarp)</strong>
-                <small>책 펼침 굴곡으로 인해 휘어진 글자 줄을 수평으로 펴기</small>
-              </span>
-            </label>
-
-            <label class="toggle-item">
-              <input type="checkbox" id="chkRemoveFingers" />
-              <span class="toggle-switch"></span>
-              <span class="toggle-label">
-                <strong>손가락 지우개 (Inpainting)</strong>
-                <small>페이지 가장자리를 누른 손가락 자동 감지 및 제거</small>
-              </span>
-            </label>
           </div>
         </section>
 
         <!-- Batch & Export Actions -->
         <section class="control-section export-section">
-          <button id="btnApplyAll" class="btn btn-outline btn-full" title="현재 슬라이더 설정을 모든 페이지에 일괄 적용">
+          <button id="btnApplyAll" class="btn btn-outline btn-full" title="현재 선택된 필터 모드를 전체 페이지에 일괄 적용">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
               <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
             </svg>
-            <span>모든 페이지에 일괄 적용</span>
+            <span>전체 페이지 필터 일괄 적용</span>
           </button>
 
           <div class="export-btn-group">
@@ -225,7 +250,7 @@
               <span>PDF 문서로 저장 (A4)</span>
             </button>
 
-            <button id="btnExportZip" class="btn btn-secondary btn-full btn-export" disabled>
+            <button id="btnExportZip" class="btn btn-success btn-full btn-export" disabled>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="21 8 21 21 3 21 3 8"></polyline>
                 <rect x="1" y="3" width="22" height="5"></rect>
@@ -250,17 +275,15 @@
         <!-- Viewport Toolbar -->
         <div class="viewport-header">
           <div class="viewport-status-info">
-            <div class="view-mode-tabs" id="viewModeTabs">
-              <button id="tabModeCrop" class="view-tab-btn active" title="8포인트 모서리 및 곡률 영역 조절">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
-                <span>📐 영역 조절</span>
-              </button>
-              <button id="tabModePreview" class="view-tab-btn" title="뒤틀기가 적용되어 반듯하게 펴진 고화질 스캔본 미리보기">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                <span>📄 펴진 결과 보기</span>
-              </button>
-            </div>
-            <span class="crop-hint-text" id="viewportHintText">💡 핸들로 휜 테두리를 맞춘 후 <strong>[펴진 결과 보기]</strong>로 확인하세요</span>
+            <button id="btnHoldCompare" class="btn btn-outline btn-sm btn-compare" title="누르고 있으면 원본 카메라 사진과 비교 (단축키: Space / C)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span>원본 비교 (Space)</span>
+            </button>
+            <button id="btnToggleCropGuide" class="btn btn-outline btn-sm btn-crop-guide" title="스캔 영역 가이드 박스 표시 및 마우스 드래그 조절">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
+              <span>영역 가이드 조절</span>
+            </button>
+            <span class="crop-hint-text" id="viewportHintText">💡 '전체 (100%)' 유지로 페이지 번호와 여백이 안전하게 보존됩니다</span>
           </div>
 
           <div class="zoom-controls">
@@ -275,7 +298,7 @@
           </div>
         </div>
 
-        <!-- Canvas Container & Interactive Overlays -->
+        <!-- Canvas Container -->
         <div class="viewport-canvas-container" id="canvasContainer">
           <!-- Dropzone State (When no image is loaded) -->
           <div class="dropzone-empty" id="dropzoneEmpty">
@@ -289,7 +312,7 @@
                 </svg>
               </div>
               <h3>도서 및 문서 사진을 여기에 끌어다 놓으세요</h3>
-              <p>스마트폰으로 비스듬히 찍거나 그림자가 진 책 사진을 자동으로 평평하고 깨끗한 스캔본으로 변환합니다.</p>
+              <p>스마트폰으로 비스듬히 찍은 책 사진도 자동으로 좌/우 2페이지로 분할하고 평평하고 깨끗한 스캔본으로 변환합니다.</p>
               <div class="dropzone-actions">
                 <button id="btnSelectFiles" class="btn btn-primary">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -314,58 +337,9 @@
           <div class="canvas-stage hidden" id="canvasStage">
             <!-- Main Canvas View -->
             <div class="canvas-wrapper" id="canvasWrapper">
-              <!-- Real-time Enhanced Editor Canvas -->
+              <!-- High-definition Straightened Scan Canvas -->
               <canvas id="resultCanvas" class="main-canvas"></canvas>
-
-              <!-- SVG Interactive Corner Overlay -->
-              <svg id="cornerSvgOverlay" class="corner-svg-overlay" preserveAspectRatio="none">
-                <!-- Dark scrim covering outside of cropped curved area -->
-                <path id="cropScrimPath" class="crop-scrim" fill-rule="evenodd" d=""></path>
-                <!-- 4 Curved Edge Lines (Bezier) -->
-                <path id="edgeTop" class="corner-line"></path>
-                <path id="edgeRight" class="corner-line"></path>
-                <path id="edgeBottom" class="corner-line"></path>
-                <path id="edgeLeft" class="corner-line"></path>
-              </svg>
-
-              <!-- 8 Draggable Handles: 4 Corner Pins + 4 Edge Curve Warp Handles -->
-              <div class="corner-pins-wrap" id="cornerPinsWrap">
-                <div class="corner-pin" id="pinTL" data-point="tl" title="좌측 상단 모서리">
-                  <span class="pin-badge">TL</span>
-                </div>
-                <div class="corner-pin" id="pinTR" data-point="tr" title="우측 상단 모서리">
-                  <span class="pin-badge">TR</span>
-                </div>
-                <div class="corner-pin" id="pinBR" data-point="br" title="우측 하단 모서리">
-                  <span class="pin-badge">BR</span>
-                </div>
-                <div class="corner-pin" id="pinBL" data-point="bl" title="좌측 하단 모서리">
-                  <span class="pin-badge">BL</span>
-                </div>
-
-                <!-- 4 Photoshop-style Curve Warp Handles -->
-                <div class="corner-pin curve-handle" id="pinTC" data-point="tc" title="상단 곡률 뒤틀기 (드래그하여 상단 굴곡 맞춤)">
-                  <span class="pin-badge">T</span>
-                </div>
-                <div class="corner-pin curve-handle" id="pinRC" data-point="rc" title="우측 책등 곡률 뒤틀기 (드래그하여 책등 굴곡 맞춤)">
-                  <span class="pin-badge">R</span>
-                </div>
-                <div class="corner-pin curve-handle" id="pinBC" data-point="bc" title="하단 곡률 뒤틀기 (드래그하여 하단 굴곡 맞춤)">
-                  <span class="pin-badge">B</span>
-                </div>
-                <div class="corner-pin curve-handle" id="pinLC" data-point="lc" title="좌측 곡률 뒤틀기 (드래그하여 좌측 굴곡 맞춤)">
-                  <span class="pin-badge">L</span>
-                </div>
-              </div>
-
-              <!-- Magnifying Loupe Canvas (Visible during drag) -->
-              <div id="loupeWrap" class="loupe-wrap hidden">
-                <canvas id="loupeCanvas" width="140" height="140"></canvas>
-                <div class="loupe-crosshair"></div>
-              </div>
             </div>
-
-
 
             <!-- Processing Spinner Overlay -->
             <div id="processingOverlay" class="processing-overlay hidden">
@@ -378,7 +352,7 @@
         <!-- Viewport Footer -->
         <div class="viewport-footer">
           <span class="status-item" id="footerDimensions">해상도: -</span>
-          <span class="status-item tip-text">단축키: <b>C 키(누른 채)</b> 원본비교 | <b>휠 스크롤</b> 확대/축소 | <b>모서리 핀 드래그</b> 원근 미세조정</span>
+          <span class="status-item tip-text">단축키: <b>Space / C 키(누른 채)</b> 원본비교 | <b>Space+드래그 / 우클릭</b> 화면 이동(Pan) | <b>휠 스크롤</b> 확대/축소</span>
         </div>
       </section>
     </main>
@@ -409,22 +383,22 @@
   <div id="helpModal" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>스마트 문서·도서 스캔 스튜디오 사용 안내</h3>
+        <h3>스마트 전자동 북 스튜디오 사용 안내</h3>
         <button id="btnCloseHelp" class="btn btn-icon">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="modal-body">
-        <h4>1. 사진 업로드</h4>
-        <p>스마트폰 카메라로 찍은 책, 영수증, 계약서 사진을 드래그 앤 드롭으로 업로드하세요. 여러 장을 한 번에 올릴 수 있습니다.</p>
+        <h4>1. 사진 드래그 앤 드롭 업로드</h4>
+        <p>스마트폰 카메라로 찍은 책 사진을 드래그 앤 드롭으로 업로드하세요. 여러 장을 한 번에 올릴 수 있습니다.</p>
         
-        <h4>2. 모서리 4점 원근 조절</h4>
-        <p>OpenCV가 문서의 4개 모서리를 자동으로 감지합니다. 더 정밀한 스캔을 원하시면 4개의 핀을 원하는 꼭짓점으로 드래그하세요. 핀을 드래그할 때 돋보기가 표시되어 미세 위치를 잡을 수 있습니다.</p>
+        <h4>2. 전자동 양면 분할 & 원근 펴기</h4>
+        <p>펼쳐진 책 양면 사진을 올리면 자동으로 중앙 제본선(Gutter)을 찾아 좌측/우측 2페이지로 자동 분할하고, 페이지 외곽을 감지하여 반듯하게 펴줍니다.</p>
         
-        <h4>3. 그림자 제거 & 스캔 필터</h4>
-        <p>책 안쪽 힌지의 어두운 음영과 방 안의 불균일한 조명을 '배경 나눗셈' 알고리즘으로 완벽히 제거합니다. 선명한 흑백, 그레이스케일, 컬러 모드를 선택하세요.</p>
+        <h4>3. 고화질 스캔 룩 & 그림자 제거</h4>
+        <p>어두운 음영을 자동으로 지우고 순백의 배경과 진한 텍스트로 보정합니다. 선명한 흑백, 그레이스케일, 컬러 모드를 1클릭으로 선택할 수 있습니다.</p>
         
-        <h4>4. PDF 및 ZIP 내보내기</h4>
+        <h4>4. PDF 및 ZIP 원클릭 내보내기</h4>
         <p>변환된 모든 페이지를 단일 A4 규격 PDF 문서로 즉시 생성하여 다운로드할 수 있습니다.</p>
       </div>
     </div>

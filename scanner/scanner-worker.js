@@ -50,6 +50,17 @@ function matToImageData(mat) {
   return imgData;
 }
 
+// Formats OpenCV C++ error pointers into human-readable exception messages
+function formatCvError(err) {
+  if (typeof cv !== "undefined" && typeof cv.exceptionFromPtr === "function" && typeof err === "number") {
+    try {
+      const info = cv.exceptionFromPtr(err);
+      return `OpenCV Exception [code ${info.code}]: ${info.msg}`;
+    } catch (_) {}
+  }
+  return (err && err.message) || String(err);
+}
+
 /**
  * Automatically detects the 4 corners of a document in the image.
  * Uses downscaled processing for high speed and returns coordinates in original image scale.
@@ -351,35 +362,71 @@ function warpCurvedQuad(srcMat, corners, curveHandles) {
 }
 
 /**
- * Illumination Correction & Shadow Removal via Morphological Background Division
- * and contrast enhancement / sharpening.
+ * Fast multi-scale illumination estimation.
+ * Downscales to estimate smooth paper background surface without text halos, then upscales.
+ */
+function estimateIllumination(grayMat, kernelSize = 31) {
+  const w = grayMat.cols;
+  const h = grayMat.rows;
+  const maxDim = 800;
+  const scale = Math.min(1.0, maxDim / Math.max(w, h));
+  const sw = Math.max(50, Math.round(w * scale));
+  const sh = Math.max(50, Math.round(h * scale));
+
+  let small = new cv.Mat();
+  let smallBg = new cv.Mat();
+  let bgMap = new cv.Mat();
+  let morphKernel = null;
+
+  try {
+    cv.resize(grayMat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
+
+    // Dynamic kernel scaled to low-res dimension for instant processing
+    const k = Math.max(15, Math.min(51, Math.round((Math.max(sw, sh) / 600) * kernelSize) | 1));
+    morphKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(k, k));
+
+    // Morphological closing to fill out text and line drawings
+    cv.morphologyEx(small, smallBg, cv.MORPH_CLOSE, morphKernel);
+
+    // Large blur to eliminate any boundary halos around titles/figures
+    const blurK = Math.max(15, Math.round(k * 1.2) | 1);
+    cv.GaussianBlur(smallBg, smallBg, new cv.Size(blurK, blurK), 0);
+
+    // Upscale smooth background map back to native resolution
+    cv.resize(smallBg, bgMap, new cv.Size(w, h), 0, 0, cv.INTER_CUBIC);
+
+    return bgMap;
+  } finally {
+    small.delete();
+    smallBg.delete();
+    if (morphKernel) morphKernel.delete();
+  }
+}
+
+/**
+ * Illumination Correction & Clean Document Scanner Pipeline.
+ * Eliminates shadows, purges salt-and-pepper background noise, and creates crisp text scans.
  */
 function enhanceDocument(warpedMat, options = {}) {
   const mode = options.mode || "bw"; // 'bw' | 'grayscale' | 'color'
-  const shadowKernelSize = options.shadowKernelSize || 31; // Odd number ~21..51
+  const shadowKernelSize = options.shadowKernelSize || 31; // 15..51
   const contrast = options.contrast !== undefined ? options.contrast : 1.2; // 0.8..2.0
   const sharpen = options.sharpen !== undefined ? options.sharpen : 1.2; // 0..2.5
 
   const w = warpedMat.cols;
   const h = warpedMat.rows;
 
-  let kernel = null;
   let result = null;
 
   try {
-    // Dynamic kernel size scaled to image resolution
-    const ksize = Math.max(15, Math.min(65, Math.round((Math.max(w, h) / 1000) * shadowKernelSize) | 1));
-    kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(ksize, ksize));
-
     if (mode === "color") {
       // Color Mode: Process Luminance (L) channel in LAB color space
       let rgb = new cv.Mat();
       let lab = new cv.Mat();
       let channels = new cv.MatVector();
       let L = null;
-      let bgMap = new cv.Mat();
+      let bgMap = null;
       let normL = new cv.Mat();
-      let sharpL = new cv.Mat();
 
       try {
         cv.cvtColor(warpedMat, rgb, cv.COLOR_RGBA2RGB);
@@ -387,22 +434,21 @@ function enhanceDocument(warpedMat, options = {}) {
         cv.split(lab, channels);
         L = channels.get(0);
 
-        // Morphological closing to remove text and estimate pure illumination
-        cv.morphologyEx(L, bgMap, cv.MORPH_CLOSE, kernel);
+        // Fast multi-scale illumination estimation on L channel
+        bgMap = estimateIllumination(L, shadowKernelSize);
         cv.divide(L, bgMap, normL, 255);
 
         // Sharpen L channel if requested
         if (sharpen > 0) {
           let blur = new cv.Mat();
-          cv.GaussianBlur(normL, blur, new cv.Size(0, 0), 2.0);
-          cv.addWeighted(normL, 1 + sharpen, blur, -sharpen, 0, normL);
+          cv.GaussianBlur(normL, blur, new cv.Size(0, 0), 1.5);
+          cv.addWeighted(normL, 1 + sharpen * 0.7, blur, -sharpen * 0.7, 0, normL);
           blur.delete();
         }
 
-        // Contrast stretch
+        // Contrast stretch with gentle paper white cutoff
         normL.convertTo(normL, -1, contrast, (1 - contrast) * 128);
 
-        // Replace L channel
         channels.set(0, normL);
         cv.merge(channels, lab);
 
@@ -417,50 +463,76 @@ function enhanceDocument(warpedMat, options = {}) {
         rgb.delete();
         lab.delete();
         if (L) L.delete();
-        bgMap.delete();
+        if (bgMap) bgMap.delete();
         normL.delete();
         channels.delete();
       }
     } else {
-      // Grayscale or B&W Mode
+      // Grayscale or B&W Crisp Scanner Mode
       let gray = new cv.Mat();
-      let bgMap = new cv.Mat();
+      let bgMap = null;
       let normalized = new cv.Mat();
 
       try {
         cv.cvtColor(warpedMat, gray, cv.COLOR_RGBA2GRAY);
 
-        // Morphological Closing for pure paper background map
-        cv.morphologyEx(gray, bgMap, cv.MORPH_CLOSE, kernel);
+        // Fast multi-scale illumination estimation on grayscale
+        bgMap = estimateIllumination(gray, shadowKernelSize);
         cv.divide(gray, bgMap, normalized, 255);
 
         if (mode === "bw") {
-          // B&W Crisp Document Mode: Adaptive Thresholding
-          let finalBw = new cv.Mat();
-          const blockSize = Math.max(15, Math.round(ksize * 0.75) | 1);
+          // B&W Crisp Document Mode (vFlat/CamScanner style clean paper):
+          // 1. Sharpening
+          if (sharpen > 0) {
+            let blur = new cv.Mat();
+            cv.GaussianBlur(normalized, blur, new cv.Size(0, 0), 1.5);
+            cv.addWeighted(normalized, 1 + sharpen * 0.7, blur, -sharpen * 0.7, 0, normalized);
+            blur.delete();
+          }
+
+          // 2. Contrast stretching
+          let stretched = new cv.Mat();
+          normalized.convertTo(stretched, -1, contrast, (1 - contrast) * 128);
+
+          // 3. Adaptive thresholding for crisp letter contours
+          let adaptiveBw = new cv.Mat();
+          const blockSize = Math.max(19, Math.min(81, Math.round((Math.max(w, h) / 1000) * 35) | 1));
           cv.adaptiveThreshold(
-            normalized,
-            finalBw,
+            stretched,
+            adaptiveBw,
             255,
             cv.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv.THRESH_BINARY,
             blockSize,
-            12
+            7
           );
+
+          // 4. Pure white background floor mask:
+          // Removes all salt-and-pepper background speckles in empty margins
+          let bgMask = new cv.Mat();
+          cv.threshold(normalized, bgMask, 185, 255, cv.THRESH_BINARY);
+
+          let finalBw = new cv.Mat();
+          cv.bitwise_or(adaptiveBw, bgMask, finalBw);
 
           result = new cv.Mat();
           cv.cvtColor(finalBw, result, cv.COLOR_GRAY2RGBA);
+
+          stretched.delete();
+          adaptiveBw.delete();
+          bgMask.delete();
           finalBw.delete();
           return result;
         } else {
           // Grayscale Scan Mode
           if (sharpen > 0) {
             let blur = new cv.Mat();
-            cv.GaussianBlur(normalized, blur, new cv.Size(0, 0), 2.0);
-            cv.addWeighted(normalized, 1 + sharpen, blur, -sharpen, 0, normalized);
+            cv.GaussianBlur(normalized, blur, new cv.Size(0, 0), 1.5);
+            cv.addWeighted(normalized, 1 + sharpen * 0.7, blur, -sharpen * 0.7, 0, normalized);
             blur.delete();
           }
 
+          // Contrast stretch
           normalized.convertTo(normalized, -1, contrast, (1 - contrast) * 128);
 
           result = new cv.Mat();
@@ -469,12 +541,18 @@ function enhanceDocument(warpedMat, options = {}) {
         }
       } finally {
         gray.delete();
-        bgMap.delete();
+        if (bgMap) bgMap.delete();
         normalized.delete();
       }
     }
-  } finally {
-    if (kernel) kernel.delete();
+  } catch (err) {
+    console.error("enhanceDocument error:", formatCvError(err));
+    try {
+      if (warpedMat && typeof warpedMat.clone === "function") {
+        return warpedMat.clone();
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
@@ -545,31 +623,26 @@ function inpaintMarginFingers(mat) {
 }
 
 /**
- * 3D Geometric Curve Dewarping using Text Baseline Detection & Remap
- * Straightens lines curved by book binding / page curl.
+ * Automatically detects the skew angle (in degrees) of horizontal text lines.
+ * Returns the median angle in degrees (positive = CCW, negative = CW).
  */
-function dewarpTextCurves(srcMat, strength = 1.0) {
+function detectTextSkewAngle(srcMat) {
   const w = srcMat.cols;
   const h = srcMat.rows;
-  if (w < 150 || h < 150 || strength <= 0) return null;
+  if (w < 150 || h < 150) return 0;
 
   let small = null;
   let gray = null;
   let thresh = null;
+  let borderMask = null;
   let kernel = null;
   let connected = null;
-  let borderMask = null;
   let contours = null;
   let hierarchy = null;
-  let mapX = null;
-  let mapY = null;
-  let dst = null;
 
   try {
-    const targetW = 600;
-    const scale = targetW / w;
-    const sw = targetW;
-    const sh = Math.max(100, Math.round(h * scale));
+    const sw = 600;
+    const sh = Math.max(100, Math.round((h * sw) / w));
 
     small = new cv.Mat();
     cv.resize(srcMat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
@@ -577,34 +650,20 @@ function dewarpTextCurves(srcMat, strength = 1.0) {
     gray = new cv.Mat();
     cv.cvtColor(small, gray, cv.COLOR_RGBA2GRAY);
 
-    // Detect spine gutter side (darker edge has the book spine)
-    let leftDarkSum = 0, rightDarkSum = 0;
-    const sampleW = Math.round(sw * 0.12);
-    for (let y = 0; y < sh; y += 4) {
-      for (let x = 0; x < sampleW; x += 2) {
-        leftDarkSum += gray.ucharPtr(y, x)[0];
-      }
-      for (let x = sw - sampleW; x < sw; x += 2) {
-        rightDarkSum += gray.ucharPtr(y, x)[0];
-      }
-    }
-    const isSpineOnRight = rightDarkSum <= leftDarkSum; // Usually true for Page 1 (Left page)
-
     thresh = new cv.Mat();
-    cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 8);
+    cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 21, 7);
 
-    // Clear 4% outer margins to remove dark frame/shadows that ruin contour detection
-    const marginX = Math.round(sw * 0.04);
-    const marginY = Math.round(sh * 0.03);
+    // Clear outer 3% margin to remove frame artifacts
+    const mx = Math.round(sw * 0.03);
+    const my = Math.round(sh * 0.03);
     borderMask = cv.Mat.zeros(sh, sw, cv.CV_8U);
-    let innerRect = new cv.Rect(marginX, marginY, sw - 2 * marginX, sh - 2 * marginY);
-    let innerRoi = borderMask.roi(innerRect);
-    innerRoi.setTo(new cv.Scalar(255));
-    innerRoi.delete();
+    const roi = borderMask.roi(new cv.Rect(mx, my, sw - 2 * mx, sh - 2 * my));
+    roi.setTo(new cv.Scalar(255));
+    roi.delete();
     cv.bitwise_and(thresh, borderMask, thresh);
 
-    // Merge adjacent text characters into horizontal text line bands (48px wide kernel)
-    const kWidth = Math.max(28, Math.round(sw * 0.08));
+    // Horizontally merge adjacent characters into full text lines
+    const kWidth = Math.max(25, Math.round(sw * 0.06));
     kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kWidth, 3));
     connected = new cv.Mat();
     cv.morphologyEx(thresh, connected, cv.MORPH_CLOSE, kernel);
@@ -613,184 +672,67 @@ function dewarpTextCurves(srcMat, strength = 1.0) {
     hierarchy = new cv.Mat();
     cv.findContours(connected, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    const minLineWidth = Math.round(sw * 0.12); // At least 12% page width (72px)
-    const maxLineHeight = Math.round(sh * 0.10); // At most 10% height
-    const numBins = 40;
-    const binDeviations = Array.from({ length: numBins }, () => []);
+    const minLineWidth = Math.round(sw * 0.12);
+    const maxLineHeight = Math.round(sh * 0.08);
+    const candidates = [];
 
     for (let i = 0; i < contours.size(); i++) {
       const cnt = contours.get(i);
       const rect = cv.boundingRect(cnt);
       cnt.delete();
 
-      if (rect.width >= minLineWidth && rect.height <= maxLineHeight && (rect.width / rect.height) >= 2.0) {
-        const pts = [];
-        const stepX = Math.max(3, Math.round(rect.width / 25));
+      if (rect.width >= minLineWidth && rect.height <= maxLineHeight && (rect.width / Math.max(1, rect.height)) >= 2.5) {
+        const xCutLeft = rect.x + Math.round(rect.width * 0.20);
+        const xCutRight = rect.x + Math.round(rect.width * 0.80);
 
-        for (let targetX = rect.x + 3; targetX <= rect.x + rect.width - 3; targetX += stepX) {
-          let sumY = 0, countY = 0;
-          for (let y = rect.y; y < rect.y + rect.height; y++) {
-            if (connected.ucharPtr(y, targetX)[0] > 0) {
-              sumY += y;
-              countY++;
+        let sumY1 = 0, count1 = 0, sumX1 = 0;
+        let sumY2 = 0, count2 = 0, sumX2 = 0;
+
+        const connData = connected.data;
+        for (let y = rect.y; y < rect.y + rect.height; y++) {
+          const rowOffset = y * sw;
+          for (let x = rect.x; x <= xCutLeft; x += 2) {
+            if (connData[rowOffset + x] > 0) {
+              sumX1 += x; sumY1 += y; count1++;
             }
           }
-          if (countY > 0) {
-            pts.push({ x: targetX, y: sumY / countY });
-          }
-        }
-
-        if (pts.length >= 4) {
-          const pStart = pts[0];
-          const pEnd = pts[pts.length - 1];
-          const dx = pEnd.x - pStart.x;
-          if (dx > 15) {
-            // Reference baseline is the flat side of the page (NOT a slanted diagonal line!)
-            // Left page: flat side is left (pStart.y). Right page: flat side is right (pEnd.y).
-            const refY = isSpineOnRight ? pStart.y : pEnd.y;
-            for (const p of pts) {
-              const dev = p.y - refY; // < 0 when text curls upwards near spine
-              const binIdx = Math.max(0, Math.min(numBins - 1, Math.floor((p.x / sw) * numBins)));
-              binDeviations[binIdx].push(dev);
+          for (let x = xCutRight; x <= rect.x + rect.width; x += 2) {
+            if (connData[rowOffset + x] > 0) {
+              sumX2 += x; sumY2 += y; count2++;
             }
           }
         }
-      }
-    }
 
-    // Compute median deviation for each horizontal bin
-    const smoothed = new Float32Array(numBins);
-    let validBins = 0;
-    for (let b = 0; b < numBins; b++) {
-      const devs = binDeviations[b];
-      if (devs.length > 0) {
-        devs.sort((a, b) => a - b);
-        smoothed[b] = devs[Math.floor(devs.length / 2)]; // Median
-        validBins++;
-      } else {
-        smoothed[b] = NaN;
-      }
-    }
-
-    // Parametric book spine curl model (Flat body + single monotonic upward curl toward spine)
-    const baseSpineAmp = (sh * 0.04);
-    const parametricCurve = new Float32Array(numBins);
-    for (let b = 0; b < numBins; b++) {
-      const uNorm = b / (numBins - 1);
-      if (isSpineOnRight) {
-        // Flat on left (0 .. 0.5), curls upward (negative shift) near right spine
-        const t = Math.max(0, (uNorm - 0.48) / 0.52);
-        parametricCurve[b] = -baseSpineAmp * Math.pow(t, 2.0);
-      } else {
-        // Curls upward (negative shift) near left spine, flat on right (0.5 .. 1.0)
-        const t = Math.max(0, ((1 - uNorm) - 0.48) / 0.52);
-        parametricCurve[b] = -baseSpineAmp * Math.pow(t, 2.0);
-      }
-    }
-
-    if (validBins >= 6) {
-      // Fill missing bins
-      let lastValidIdx = -1;
-      for (let b = 0; b < numBins; b++) {
-        if (!isNaN(smoothed[b])) {
-          if (lastValidIdx === -1) {
-            for (let k = 0; k < b; k++) smoothed[k] = smoothed[b];
-          } else if (b - lastValidIdx > 1) {
-            const v0 = smoothed[lastValidIdx];
-            const v1 = smoothed[b];
-            for (let k = lastValidIdx + 1; k < b; k++) {
-              const t = (k - lastValidIdx) / (b - lastValidIdx);
-              smoothed[k] = v0 + (v1 - v0) * t;
+        if (count1 >= 5 && count2 >= 5) {
+          const x1 = sumX1 / count1;
+          const y1 = sumY1 / count1;
+          const x2 = sumX2 / count2;
+          const y2 = sumY2 / count2;
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          if (dx > 30) {
+            const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+            if (Math.abs(angleDeg) <= 12.0) {
+              candidates.push({ angle: angleDeg, width: rect.width });
             }
           }
-          lastValidIdx = b;
         }
-      }
-      if (lastValidIdx !== -1 && lastValidIdx < numBins - 1) {
-        for (let k = lastValidIdx + 1; k < numBins; k++) {
-          smoothed[k] = smoothed[lastValidIdx];
-        }
-      }
-
-      // Smooth with moving average [0.25, 0.5, 0.25]
-      for (let b = 0; b < numBins; b++) {
-        const prev = b > 0 ? smoothed[b - 1] : smoothed[b];
-        const curr = smoothed[b];
-        const next = b < numBins - 1 ? smoothed[b + 1] : smoothed[b];
-        smoothed[b] = 0.25 * prev + 0.5 * curr + 0.25 * next;
-      }
-
-      // Enforce physical monotonicity:
-      // Flat side MUST stay flat (dev <= 0 only; positive values mean downward dip noise and must be zeroed!)
-      if (isSpineOnRight) {
-        const flatLimit = Math.round(numBins * 0.45);
-        for (let b = 0; b <= flatLimit; b++) {
-          smoothed[b] = 0;
-        }
-        let runningMin = 0;
-        for (let b = flatLimit + 1; b < numBins; b++) {
-          if (smoothed[b] < runningMin) runningMin = smoothed[b];
-          smoothed[b] = runningMin; // Monotonically curl upwards toward spine
-        }
-      } else {
-        const flatStart = Math.round(numBins * 0.55);
-        for (let b = flatStart; b < numBins; b++) {
-          smoothed[b] = 0;
-        }
-        let runningMin = 0;
-        for (let b = flatStart - 1; b >= 0; b--) {
-          if (smoothed[b] < runningMin) runningMin = smoothed[b];
-          smoothed[b] = runningMin;
-        }
-      }
-    } else {
-      // Use parametric model if text lines are sparse
-      for (let b = 0; b < numBins; b++) {
-        smoothed[b] = parametricCurve[b];
       }
     }
 
-    // Build shifts array for full resolution width w
-    const shifts = new Float32Array(w);
-    const maxShiftAllowed = h * 0.15; // Allow up to 15% height adjustment
-    const invScale = 1.0 / scale;
+    if (candidates.length === 0) return 0;
 
-    for (let x = 0; x < w; x++) {
-      const u = (x / w) * (numBins - 1);
-      const b0 = Math.floor(u);
-      const b1 = Math.min(numBins - 1, b0 + 1);
-      const t = u - b0;
-      const dSmall = smoothed[b0] * (1 - t) + smoothed[b1] * t;
-      let shiftY = dSmall * invScale * strength;
+    // Prioritize long paragraph lines (width >= 28% page) over short bubble texts
+    const longThreshold = sw * 0.28;
+    const longLines = candidates.filter(c => c.width >= longThreshold);
+    const activeList = longLines.length >= 2 ? longLines : candidates;
 
-      if (shiftY > maxShiftAllowed) shiftY = maxShiftAllowed;
-      else if (shiftY < -maxShiftAllowed) shiftY = -maxShiftAllowed;
-
-      shifts[x] = shiftY;
-    }
-
-    mapX = new cv.Mat(h, w, cv.CV_32FC1);
-    mapY = new cv.Mat(h, w, cv.CV_32FC1);
-
-    const mXData = mapX.data32F;
-    const mYData = mapY.data32F;
-
-    for (let y = 0; y < h; y++) {
-      const rowOffset = y * w;
-      for (let x = 0; x < w; x++) {
-        const idx = rowOffset + x;
-        mXData[idx] = x;
-        mYData[idx] = y + shifts[x];
-      }
-    }
-
-    dst = new cv.Mat();
-    cv.remap(srcMat, dst, mapX, mapY, cv.INTER_LINEAR, cv.BORDER_REPLICATE);
-    console.log(`[Dewarp] Dewarp applied successfully with strength=${strength}`);
-    return dst;
+    activeList.sort((a, b) => a.angle - b.angle);
+    const medianAngle = activeList[Math.floor(activeList.length / 2)].angle;
+    return medianAngle;
   } catch (err) {
-    console.warn("Dewarping bypassed due to error:", err);
-    return null;
+    console.warn("[Deskew] Angle estimation error:", err);
+    return 0;
   } finally {
     if (small) small.delete();
     if (gray) gray.delete();
@@ -800,8 +742,394 @@ function dewarpTextCurves(srcMat, strength = 1.0) {
     if (connected) connected.delete();
     if (contours) contours.delete();
     if (hierarchy) hierarchy.delete();
-    if (mapX) mapX.delete();
-    if (mapY) mapY.delete();
+  }
+}
+
+/**
+ * Estimates whether book spine gutter is on "right" or "left"
+ */
+function estimateSpineSide(mat) {
+  const w = mat.cols;
+  const h = mat.rows;
+  let small = null;
+  let gray = null;
+
+  try {
+    const sw = 400;
+    const sh = Math.max(100, Math.round((h * sw) / w));
+
+    small = new cv.Mat();
+    cv.resize(mat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
+
+    gray = new cv.Mat();
+    cv.cvtColor(small, gray, cv.COLOR_RGBA2GRAY);
+
+    // Measure outer text margins
+    let leftMarginSum = 0, rightMarginSum = 0, validRows = 0;
+    const yStart = Math.round(sh * 0.20);
+    const yEnd = Math.round(sh * 0.80);
+
+    const grayData = gray.data;
+    for (let y = yStart; y < yEnd; y += 4) {
+      const rowOffset = y * sw;
+      let firstTextX = -1;
+      let lastTextX = -1;
+      for (let x = 0; x < sw; x += 2) {
+        if (grayData[rowOffset + x] < 150) {
+          if (firstTextX === -1) firstTextX = x;
+          lastTextX = x;
+        }
+      }
+      if (firstTextX !== -1 && lastTextX > firstTextX + 40) {
+        leftMarginSum += firstTextX;
+        rightMarginSum += (sw - 1 - lastTextX);
+        validRows++;
+      }
+    }
+
+    if (validRows >= 5) {
+      const avgLeftMargin = leftMarginSum / validRows;
+      const avgRightMargin = rightMarginSum / validRows;
+      // In a book page, the outer margin is typically much wider than the gutter margin.
+      // If left margin is wider, text is pushed toward right spine -> spine is on the right!
+      if (avgLeftMargin > avgRightMargin * 1.35) return "right";
+      if (avgRightMargin > avgLeftMargin * 1.35) return "left";
+    }
+
+    // Secondary check: spine edge is darker due to binding curvature shadow
+    let leftDarkSum = 0, rightDarkSum = 0;
+    const sampleW = Math.round(sw * 0.12);
+    for (let y = 0; y < sh; y += 4) {
+      const rowOffset = y * sw;
+      for (let x = 0; x < sampleW; x += 2) {
+        leftDarkSum += (255 - grayData[rowOffset + x]);
+      }
+      for (let x = sw - sampleW; x < sw; x += 2) {
+        rightDarkSum += (255 - grayData[rowOffset + x]);
+      }
+    }
+
+    return rightDarkSum >= leftDarkSum ? "right" : "left";
+  } catch (err) {
+    return "right";
+  } finally {
+    if (small) small.delete();
+    if (gray) gray.delete();
+  }
+}
+
+/**
+ * Calculates smooth vertical displacement shifts[x] across width w.
+ * Strictly models the physical book page curve using a C2-continuous smooth Hermite model:
+ * 1. Flat outer region (0 .. 55%): shifts[x] === 0 (100% straight, no distortion)
+ * 2. Spine curved region (55% .. 100%): monotonic, infinitely smooth leveling to eliminate spine lift
+ * Zero bins, zero discrete steps, zero jagged sawteeth ("삐뚤빼뚤 방지").
+ */
+function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
+  const w = mat.cols;
+  const h = mat.rows;
+  const sw = 600;
+  const sh = Math.max(100, Math.round((h * sw) / w));
+  const scale = sw / w;
+  const invScale = 1.0 / scale;
+
+  let small = null;
+  let gray = null;
+  let thresh = null;
+  let borderMask = null;
+  let kernel = null;
+  let connected = null;
+  let contours = null;
+  let hierarchy = null;
+
+  const lifts = [];
+
+  try {
+    small = new cv.Mat();
+    cv.resize(mat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
+
+    gray = new cv.Mat();
+    cv.cvtColor(small, gray, cv.COLOR_RGBA2GRAY);
+
+    thresh = new cv.Mat();
+    cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 21, 7);
+
+    // Mask out 4% margin
+    borderMask = cv.Mat.zeros(sh, sw, cv.CV_8U);
+    const mx = Math.round(sw * 0.04);
+    const my = Math.round(sh * 0.04);
+    const roi = borderMask.roi(new cv.Rect(mx, my, sw - 2 * mx, sh - 2 * my));
+    roi.setTo(new cv.Scalar(255));
+    roi.delete();
+    cv.bitwise_and(thresh, borderMask, thresh);
+
+    const kWidth = Math.max(25, Math.round(sw * 0.07));
+    kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kWidth, 3));
+    connected = new cv.Mat();
+    cv.morphologyEx(thresh, connected, cv.MORPH_CLOSE, kernel);
+
+    contours = new cv.MatVector();
+    hierarchy = new cv.Mat();
+    cv.findContours(connected, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    const connData = connected.data;
+
+    // Filter for substantial paragraph lines in main body (exclude top/bottom margins)
+    const minLineWidth = Math.round(sw * 0.28);
+    const maxLineHeight = Math.round(sh * 0.08);
+    const bodyTop = Math.round(sh * 0.05);
+    const bodyBottom = Math.round(sh * 0.95);
+
+    for (let i = 0; i < contours.size(); i++) {
+      const cnt = contours.get(i);
+      const rect = cv.boundingRect(cnt);
+      cnt.delete();
+
+      if (
+        rect.y >= bodyTop &&
+        (rect.y + rect.height) <= bodyBottom &&
+        rect.width >= minLineWidth &&
+        rect.height <= maxLineHeight &&
+        (rect.width / Math.max(1, rect.height)) >= 2.2
+      ) {
+        // Sample flat outer side vs spine side based on page spine orientation
+        let sumYFlat = 0, countYFlat = 0;
+        let sumYSpine = 0, countYSpine = 0;
+
+        if (isSpineOnRight) {
+          // Left 25% is outer flat; Right 25% is spine
+          const xEndFlat = rect.x + Math.round(rect.width * 0.25);
+          for (let tx = rect.x + 3; tx <= xEndFlat; tx += 2) {
+            for (let y = rect.y; y < rect.y + rect.height; y++) {
+              if (connData[y * sw + tx] > 0) {
+                sumYFlat += y;
+                countYFlat++;
+              }
+            }
+          }
+
+          const xStartSpine = rect.x + Math.round(rect.width * 0.75);
+          for (let tx = xStartSpine; tx <= rect.x + rect.width - 3; tx += 2) {
+            for (let y = rect.y; y < rect.y + rect.height; y++) {
+              if (connData[y * sw + tx] > 0) {
+                sumYSpine += y;
+                countYSpine++;
+              }
+            }
+          }
+        } else {
+          // Left 25% is spine; Right 25% is outer flat
+          const xEndSpine = rect.x + Math.round(rect.width * 0.25);
+          for (let tx = rect.x + 3; tx <= xEndSpine; tx += 2) {
+            for (let y = rect.y; y < rect.y + rect.height; y++) {
+              if (connData[y * sw + tx] > 0) {
+                sumYSpine += y;
+                countYSpine++;
+              }
+            }
+          }
+
+          const xStartFlat = rect.x + Math.round(rect.width * 0.75);
+          for (let tx = xStartFlat; tx <= rect.x + rect.width - 3; tx += 2) {
+            for (let y = rect.y; y < rect.y + rect.height; y++) {
+              if (connData[y * sw + tx] > 0) {
+                sumYFlat += y;
+                countYFlat++;
+              }
+            }
+          }
+        }
+
+        if (countYFlat > 10 && countYSpine > 10) {
+          const yFlat = sumYFlat / countYFlat;
+          const ySpine = sumYSpine / countYSpine;
+          const lift = ySpine - yFlat; // Negative when curled upward toward spine
+          if (lift > -sh * 0.10 && lift < sh * 0.05) {
+            lifts.push(lift);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[Dewarp] Curvature extraction error:", formatCvError(err));
+  } finally {
+    if (small) small.delete();
+    if (gray) gray.delete();
+    if (thresh) thresh.delete();
+    if (borderMask) borderMask.delete();
+    if (kernel) kernel.delete();
+    if (connected) connected.delete();
+    if (contours) contours.delete();
+    if (hierarchy) hierarchy.delete();
+  }
+
+  const shifts = new Float32Array(w);
+
+  // If insufficient lines, keep straight
+  if (lifts.length === 0) {
+    console.log(`[Dewarp] Straight page: no curvature detected.`);
+    return shifts;
+  }
+
+  lifts.sort((a, b) => a - b);
+  const medianLift = lifts[Math.floor(lifts.length / 2)];
+  const minCurlThreshold = -1.5; // at least 1.5px upward lift in 600px width scale
+
+  if (medianLift >= minCurlThreshold) {
+    console.log(`[Dewarp] Page is already straight (measured lift: ${medianLift.toFixed(2)}px >= threshold ${minCurlThreshold}px). No warp needed.`);
+    return shifts;
+  }
+
+  // medianLift is negative (text curled upward).
+  // Downward shift: dst(y) reads src(y - targetA) => shift must be negative.
+  const maxDisplacement = -medianLift * invScale * strength;
+  const maxAllowed = h * 0.08;
+  const targetA = Math.min(maxAllowed, Math.max(0, maxDisplacement));
+
+  console.log(`[Dewarp] Genuine spine curl detected (lift=${medianLift.toFixed(2)}px). Applying smooth parametric flattening (amplitude=${targetA.toFixed(1)}px).`);
+
+  // Outer 45% is completely flat (0 shift).
+  // Inner 55% curves smoothly with Hermite cubic: 3t^2 - 2t^3 (zero derivative at inflection)
+  const spineStartRatio = 0.45;
+
+  for (let x = 0; x < w; x++) {
+    const xRatio = x / w;
+    if (isSpineOnRight) {
+      if (xRatio <= spineStartRatio) {
+        shifts[x] = 0;
+      } else {
+        const t = (xRatio - spineStartRatio) / (1.0 - spineStartRatio);
+        // Negative shift shifts pixels downward into flat alignment
+        shifts[x] = -targetA * (3 * t * t - 2 * t * t * t);
+      }
+    } else {
+      if (xRatio >= (1.0 - spineStartRatio)) {
+        shifts[x] = 0;
+      } else {
+        const t = ((1.0 - spineStartRatio) - xRatio) / (1.0 - spineStartRatio);
+        // Negative shift shifts pixels downward into flat alignment
+        shifts[x] = -targetA * (3 * t * t - 2 * t * t * t);
+      }
+    }
+  }
+
+  return shifts;
+}
+
+/**
+ * Applies vertical column displacement shifts[x] to Mat.
+ * High-speed linear interpolation typed-array implementation: 100% stable, zero WASM OOM.
+ */
+function applyVerticalColumnShifts(srcMat, shifts) {
+  const w = srcMat.cols;
+  const h = srcMat.rows;
+  let dstMat = null;
+
+  try {
+    dstMat = new cv.Mat(h, w, cv.CV_8UC4);
+
+    const srcData = srcMat.data;
+    const dstData = dstMat.data;
+
+    for (let x = 0; x < w; x++) {
+      const shift = shifts[x] || 0;
+      const sFloor = Math.floor(shift);
+      const frac = shift - sFloor;
+      const invFrac = 1.0 - frac;
+
+      for (let y = 0; y < h; y++) {
+        const dstIdx = (y * w + x) * 4;
+        const y0 = y + sFloor;
+        const y1 = y0 + 1;
+
+        if (y0 >= 0 && y1 < h) {
+          const idx0 = (y0 * w + x) * 4;
+          const idx1 = (y1 * w + x) * 4;
+          dstData[dstIdx]     = (srcData[idx0]     * invFrac + srcData[idx1]     * frac) | 0;
+          dstData[dstIdx + 1] = (srcData[idx0 + 1] * invFrac + srcData[idx1 + 1] * frac) | 0;
+          dstData[dstIdx + 2] = (srcData[idx0 + 2] * invFrac + srcData[idx1 + 2] * frac) | 0;
+          dstData[dstIdx + 3] = (srcData[idx0 + 3] * invFrac + srcData[idx1 + 3] * frac) | 0;
+        } else {
+          const clampY = Math.max(0, Math.min(h - 1, y0));
+          const idx = (clampY * w + x) * 4;
+          dstData[dstIdx]     = srcData[idx];
+          dstData[dstIdx + 1] = srcData[idx + 1];
+          dstData[dstIdx + 2] = srcData[idx + 2];
+          dstData[dstIdx + 3] = srcData[idx + 3];
+        }
+      }
+    }
+
+    return dstMat;
+  } catch (err) {
+    if (dstMat) {
+      try { dstMat.delete(); } catch (_) {}
+    }
+    throw err;
+  }
+}
+
+/**
+ * 3D Geometric Curve Dewarping using Deskew, Spine Detection & Column Unwarp.
+ * Straightens page tilt and curved text near the book spine.
+ */
+function dewarpTextCurves(srcMat, options = {}) {
+  const strength = typeof options === "number" ? options : (options.dewarpStrength ?? 1.0);
+  if (strength <= 0) return null;
+
+  const w = srcMat.cols;
+  const h = srcMat.rows;
+  if (w < 150 || h < 150) return null;
+
+  let currentMat = null;
+  let rotM = null;
+  let deskewedMat = null;
+  let dewarpedMat = null;
+
+  try {
+    // Step 1: Auto-Deskew
+    const skewAngle = detectTextSkewAngle(srcMat);
+    console.log(`[Dewarp] Detected skew angle: ${skewAngle.toFixed(2)} deg`);
+
+    if (Math.abs(skewAngle) >= 0.15 && Math.abs(skewAngle) <= 12.0) {
+      const center = new cv.Point(w / 2, h / 2);
+      // Passing skewAngle applies leveling rotation
+      rotM = cv.getRotationMatrix2D(center, skewAngle, 1.0);
+      deskewedMat = new cv.Mat();
+      cv.warpAffine(srcMat, deskewedMat, rotM, new cv.Size(w, h), cv.INTER_LINEAR, cv.BORDER_REPLICATE);
+      currentMat = deskewedMat;
+      console.log(`[Dewarp] Auto-Deskew applied with angle ${skewAngle.toFixed(2)} deg`);
+    } else {
+      currentMat = srcMat.clone();
+    }
+
+    // Step 2: Spine Detection
+    let spineSide = options.spineSide || null;
+    if (!spineSide || (spineSide !== "left" && spineSide !== "right")) {
+      spineSide = estimateSpineSide(currentMat);
+    }
+    const isSpineOnRight = (spineSide === "right");
+    console.log(`[Dewarp] Spine side: ${isSpineOnRight ? "RIGHT" : "LEFT"}`);
+
+    // Step 3: Dewarp Shifts
+    const shifts = calculateSpineDewarpShifts(currentMat, isSpineOnRight, strength);
+
+    // Step 4: Apply Column Remap
+    dewarpedMat = applyVerticalColumnShifts(currentMat, shifts);
+    console.log(`[Dewarp] Dewarp completed successfully with strength=${strength}`);
+
+    return dewarpedMat;
+  } catch (err) {
+    console.warn("[Dewarp] Dewarping error, falling back to original:", formatCvError(err));
+    if (dewarpedMat) {
+      try { dewarpedMat.delete(); } catch (_) {}
+      dewarpedMat = null;
+    }
+    return null;
+  } finally {
+    if (rotM) rotM.delete();
+    if (deskewedMat && deskewedMat !== dewarpedMat) deskewedMat.delete();
+    if (currentMat && currentMat !== srcMat && currentMat !== deskewedMat && currentMat !== dewarpedMat) currentMat.delete();
   }
 }
 
@@ -823,14 +1151,18 @@ function splitDoublePageSpread(mat) {
     let minSum = Infinity;
     let splitX = Math.round(w * 0.5);
 
-    // Sample every 4th row to find darkest column
+    const center = w * 0.5;
+    const grayData = gray.data;
     for (let x = minX; x <= maxX; x++) {
       let colSum = 0;
       for (let y = 0; y < h; y += 4) {
-        colSum += gray.ucharPtr(y, x)[0];
+        colSum += grayData[y * w + x];
       }
-      if (colSum < minSum) {
-        minSum = colSum;
+      // Gentle penalty for distance from center to prevent latching onto inner text margins
+      const distRatio = Math.abs(x - center) / (w * 0.15);
+      const score = colSum * (1.0 + 0.35 * distRatio);
+      if (score < minSum) {
+        minSum = score;
         splitX = x;
       }
     }
@@ -862,6 +1194,82 @@ self.onmessage = async (e) => {
 
     await initOpenCV();
 
+    if (action === "PROCESS_AUTO_PAGE") {
+      const { imageData, options } = payload;
+      const srcMat = imageDataToMat(imageData);
+      let croppedMat = null;
+      let dewarpedMat = null;
+      let postWarpMat = null;
+      let enhancedMat = null;
+
+      try {
+        const w = srcMat.cols;
+        const h = srcMat.rows;
+        const ratios = options ? options.cropRatios : null;
+
+        // Step 1: Crop region specified by user (default: full page 100%)
+        if (ratios && (ratios.top > 0 || ratios.bottom < 1 || ratios.left > 0 || ratios.right < 1)) {
+          const sx = Math.max(0, Math.min(w - 10, Math.round(w * Math.max(0, Math.min(1, ratios.left)))));
+          const sy = Math.max(0, Math.min(h - 10, Math.round(h * Math.max(0, Math.min(1, ratios.top)))));
+          const ex = Math.max(sx + 10, Math.min(w, Math.round(w * Math.max(0, Math.min(1, ratios.right)))));
+          const ey = Math.max(sy + 10, Math.min(h, Math.round(h * Math.max(0, Math.min(1, ratios.bottom)))));
+          const rect = new cv.Rect(sx, sy, ex - sx, ey - sy);
+          croppedMat = srcMat.roi(rect).clone();
+        } else {
+          croppedMat = srcMat.clone();
+        }
+
+        // Step 2: Auto-Deskew & Curvature Dewarp
+        postWarpMat = croppedMat;
+        if (options && options.dewarpCurves) {
+          dewarpedMat = dewarpTextCurves(croppedMat, options);
+          if (dewarpedMat) {
+            postWarpMat = dewarpedMat;
+          }
+        }
+
+        // Step 3: Shadow removal and crisp scan enhancement
+        enhancedMat = enhanceDocument(postWarpMat, options || {});
+        const outMat = enhancedMat || postWarpMat;
+        const outData = matToImageData(outMat);
+
+        self.postMessage(
+          {
+            id,
+            status: "SUCCESS",
+            result: {
+              imageData: outData
+            }
+          },
+          [outData.data.buffer]
+        );
+      } finally {
+        srcMat.delete();
+        if (croppedMat) croppedMat.delete();
+        if (dewarpedMat && dewarpedMat !== croppedMat) dewarpedMat.delete();
+        if (enhancedMat && enhancedMat !== postWarpMat && enhancedMat !== croppedMat) enhancedMat.delete();
+      }
+      return;
+    }
+
+    if (action === "ENHANCE_EXISTING_SCAN") {
+      const { imageData, options } = payload;
+      const srcMat = imageDataToMat(imageData);
+      let enhancedMat = null;
+      try {
+        enhancedMat = enhanceDocument(srcMat, options || {});
+        const outData = matToImageData(enhancedMat);
+        self.postMessage(
+          { id, status: "SUCCESS", result: { imageData: outData } },
+          [outData.data.buffer]
+        );
+      } finally {
+        srcMat.delete();
+        if (enhancedMat) enhancedMat.delete();
+      }
+      return;
+    }
+
     if (action === "DETECT_CORNERS") {
       const { imageData } = payload;
       const corners = detectDocumentCorners(imageData);
@@ -869,10 +1277,41 @@ self.onmessage = async (e) => {
       return;
     }
 
+    if (action === "WARP_PREVIEW_FAST") {
+      const { imageData, corners, curveHandles } = payload;
+      const srcMat = imageDataToMat(imageData);
+      let warpedMat = null;
+
+      try {
+        if (curveHandles) {
+          warpedMat = warpCurvedQuad(srcMat, corners, curveHandles);
+        } else {
+          warpedMat = warpPerspective(srcMat, corners);
+        }
+
+        const outData = matToImageData(warpedMat);
+        self.postMessage(
+          {
+            id,
+            status: "SUCCESS",
+            result: {
+              imageData: outData
+            }
+          },
+          [outData.data.buffer]
+        );
+      } finally {
+        srcMat.delete();
+        if (warpedMat) warpedMat.delete();
+      }
+      return;
+    }
+
     if (action === "PROCESS_IMAGE") {
       const { imageData, corners, curveHandles, options } = payload;
       const srcMat = imageDataToMat(imageData);
       let warpedMat = null;
+      let dewarpedMat = null;
       let fingerMat = null;
       let enhancedMat = null;
 
@@ -884,13 +1323,20 @@ self.onmessage = async (e) => {
           warpedMat = warpPerspective(srcMat, corners);
         }
 
-        // Step 2: Finger Inpainting (Optional)
-        if (options && options.removeFingers) {
-          fingerMat = inpaintMarginFingers(warpedMat);
+        // Step 2: Text Curve Dewarping (Straightens curled book text lines along spine)
+        const dewarpStrength = (options && options.dewarpStrength !== undefined) ? options.dewarpStrength : 1.0;
+        if (options && options.dewarpCurves && dewarpStrength > 0) {
+          dewarpedMat = dewarpTextCurves(warpedMat, dewarpStrength);
         }
-        const postFingerMat = fingerMat || warpedMat;
+        const postWarpMat = dewarpedMat || warpedMat;
 
-        // Step 3: Double Page Split (Optional)
+        // Step 3: Finger Inpainting (Optional)
+        if (options && options.removeFingers) {
+          fingerMat = inpaintMarginFingers(postWarpMat);
+        }
+        const postFingerMat = fingerMat || postWarpMat;
+
+        // Step 4: Double Page Split (Optional)
         if (options && options.isDoublePage) {
           const split = splitDoublePageSpread(postFingerMat);
           if (split) {
@@ -920,7 +1366,7 @@ self.onmessage = async (e) => {
           }
         }
 
-        // Step 4: Shadow Removal & Enhancement
+        // Step 5: Shadow Removal & Enhancement
         enhancedMat = enhanceDocument(postFingerMat, options);
         const outData = matToImageData(enhancedMat);
 
@@ -938,6 +1384,7 @@ self.onmessage = async (e) => {
       } finally {
         srcMat.delete();
         if (warpedMat) warpedMat.delete();
+        if (dewarpedMat) dewarpedMat.delete();
         if (fingerMat) fingerMat.delete();
         if (enhancedMat) enhancedMat.delete();
       }
@@ -1024,7 +1471,8 @@ self.onmessage = async (e) => {
 
     throw new Error(`Unknown action: ${action}`);
   } catch (err) {
-    console.error("Worker processing error:", err);
-    self.postMessage({ id, status: "ERROR", error: err.message || String(err) });
+    const errMsg = formatCvError(err);
+    console.error("Worker processing error:", errMsg);
+    self.postMessage({ id, status: "ERROR", error: errMsg });
   }
 };

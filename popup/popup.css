@@ -180,19 +180,25 @@ body {
 }
 
 .btn-scanner {
-  background-color: #6366f1;
-  color: #ffffff;
+  background-color: #efd430;
+  color: #0f172a;
+  border: 1px solid #dfc420;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-scanner:hover {
-  background-color: #4f46e5;
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+  background-color: #dfc420;
+  color: #0f172a;
+  box-shadow: 0 0 14px rgba(239, 212, 48, 0.4);
+}
+
+.btn-scanner .btn-text strong {
+  color: #0f172a;
 }
 
 .btn-scanner .btn-text small {
-  color: #ffffff;
-  opacity: 0.85;
+  color: #334155;
+  opacity: 0.9;
 }
 
 .btn-outline {
