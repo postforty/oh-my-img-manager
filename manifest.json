@@ -37,6 +37,7 @@
         "i18n.js",
         "lib/*",
         "lib/transformers/*",
+        "scanner/*",
         "icons/*"
       ],
       "matches": [

@@ -31,6 +31,17 @@ document.getElementById("btnOpenWorkspace").addEventListener("click", () => {
   }
 });
 
+const btnOpenScanner = document.getElementById("btnOpenScanner");
+if (btnOpenScanner) {
+  btnOpenScanner.addEventListener("click", () => {
+    if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+      chrome.tabs.create({ url: chrome.runtime.getURL("scanner/scanner.html") });
+    } else {
+      window.open("../scanner/scanner.html", "_blank");
+    }
+  });
+}
+
 const btnOpenGuide = document.getElementById("btnOpenGuide");
 if (btnOpenGuide) {
   btnOpenGuide.addEventListener("click", () => {

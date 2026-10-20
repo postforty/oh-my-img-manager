@@ -89,6 +89,7 @@ const editorWorkspace = document.getElementById("editorWorkspace");
 const fileInput = document.getElementById("fileInput");
 const imageDimensions = document.getElementById("imageDimensions");
 const btnOpenCropper = document.getElementById("btnOpenCropper");
+const btnOpenScanner = document.getElementById("btnOpenScanner");
 const btnThemeToggle = document.getElementById("btnThemeToggle");
 const btnHelp = document.getElementById("btnHelp");
 
@@ -3459,6 +3460,16 @@ function setupActionButtons() {
       window.open("../workspace/workspace.html", "_blank");
     }
   });
+
+  if (btnOpenScanner) {
+    btnOpenScanner.addEventListener("click", () => {
+      if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+        chrome.tabs.create({ url: chrome.runtime.getURL("scanner/scanner.html") });
+      } else {
+        window.open("../scanner/scanner.html", "_blank");
+      }
+    });
+  }
 
   btnHelp.addEventListener("click", () => {
     if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {

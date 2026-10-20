@@ -432,6 +432,17 @@ function setupActionButtons() {
     });
   }
 
+  const btnOpenScanner = document.getElementById("btnOpenScanner");
+  if (btnOpenScanner) {
+    btnOpenScanner.addEventListener("click", () => {
+      if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+        chrome.tabs.create({ url: chrome.runtime.getURL("scanner/scanner.html") });
+      } else {
+        window.open("../scanner/scanner.html", "_blank");
+      }
+    });
+  }
+
   document.getElementById("btnHeaderHelp").addEventListener("click", () => {
     if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
       chrome.tabs.create({ url: chrome.runtime.getURL("guide.html#cropper") });

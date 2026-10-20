@@ -179,6 +179,22 @@ body {
   opacity: 0.8;
 }
 
+.btn-scanner {
+  background-color: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-scanner:hover {
+  background-color: #4f46e5;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+}
+
+.btn-scanner .btn-text small {
+  color: #ffffff;
+  opacity: 0.85;
+}
+
 .btn-outline {
   background-color: transparent;
   border-color: var(--accent-blue);
