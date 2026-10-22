@@ -61,6 +61,7 @@ const chkDewarpCurves = document.getElementById("chkDewarpCurves");
 
 // Crop Area Controls (Workspace Style)
 const btnCropFull = document.getElementById("btnCropFull");
+const btnCropAuto = document.getElementById("btnCropAuto");
 const btnCropMargin = document.getElementById("btnCropMargin");
 const btnCropText = document.getElementById("btnCropText");
 
@@ -481,7 +482,7 @@ function updateCropSlidersUI(ratios, presetName = null) {
   if (valCropLeft) valCropLeft.textContent = `${(ratios.left * 100).toFixed(1)}%`;
   if (valCropRight) valCropRight.textContent = `${(ratios.right * 100).toFixed(1)}%`;
 
-  [btnCropFull, btnCropMargin, btnCropText].forEach((btn) => {
+  [btnCropFull, btnCropAuto, btnCropMargin, btnCropText].forEach((btn) => {
     if (btn) btn.classList.toggle("active", btn.dataset.preset === presetName);
   });
 }
@@ -896,6 +897,42 @@ if (btnToggleCropGuide) {
   });
 });
 
+if (btnCropAuto) {
+  btnCropAuto.addEventListener("click", async () => {
+    if (state.activeIndex < 0) return;
+    const page = state.pages[state.activeIndex];
+    showProcessing("스마트 자동 영역 분석 중...");
+
+    try {
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = page.rawImage.width || page.rawImage.naturalWidth;
+      offCanvas.height = page.rawImage.height || page.rawImage.naturalHeight;
+      const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(page.rawImage, 0, 0);
+      const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+
+      const res = await sendWorkerRequest("DETECT_SMART_CROP", {
+        imageData: imgData
+      }, [imgData.data.buffer]);
+
+      if (res && res.ratios) {
+        page.options.cropRatios = { ...res.ratios };
+        state.options.cropRatios = { ...res.ratios };
+        updateCropSlidersUI(res.ratios, "auto");
+
+        showProcessing("스캔 영역 재적용 중...");
+        await reprocessPageFilter(page);
+        renderCurrentPage(false);
+        renderFilmstrip();
+      }
+    } catch (err) {
+      console.error("Smart Auto Crop error:", err);
+    } finally {
+      hideProcessing();
+    }
+  });
+}
+
 function handleCropSliderInput() {
   if (state.activeIndex < 0) return;
   const page = state.pages[state.activeIndex];
@@ -914,7 +951,7 @@ function handleCropSliderInput() {
   valCropLeft.textContent = `${(left * 100).toFixed(1)}%`;
   valCropRight.textContent = `${(right * 100).toFixed(1)}%`;
 
-  [btnCropFull, btnCropMargin, btnCropText].forEach((b) => b && b.classList.remove("active"));
+  [btnCropFull, btnCropAuto, btnCropMargin, btnCropText].forEach((b) => b && b.classList.remove("active"));
 
   // Show crop guide live so user sees boundaries clearly
   state.isCropGuideActive = true;

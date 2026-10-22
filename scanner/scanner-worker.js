@@ -404,6 +404,81 @@ function estimateIllumination(grayMat, kernelSize = 31) {
 }
 
 /**
+ * Detects persistent spine/gutter shadow bands and scanner border artifacts in outer margins.
+ * Leaves text completely untouched while rolling outer shadows smoothly to paper white (255).
+ */
+function suppressMarginGutterShadows(grayMat) {
+  const w = grayMat.cols;
+  const h = grayMat.rows;
+  const data = grayMat.data;
+
+  // Outer 12% on left and right
+  const maxMarginW = Math.round(w * 0.12);
+  const sampleStepY = 4;
+  const numSampleRows = Math.floor((h * 0.8) / sampleStepY);
+
+  // Left Gutter: check if edge columns are dominated by dark pixels (>40% vertical darkness)
+  let gutterEndLeft = 0;
+  for (let x = 0; x < maxMarginW; x++) {
+    let darkCount = 0;
+    for (let y = Math.round(h * 0.1); y < Math.round(h * 0.9); y += sampleStepY) {
+      if (data[y * w + x] < 145) darkCount++;
+    }
+    if (darkCount >= numSampleRows * 0.35) {
+      gutterEndLeft = x + 3;
+    } else if (gutterEndLeft > 0 && x > gutterEndLeft + 5) {
+      break;
+    }
+  }
+
+  // Right Gutter: check rightmost columns
+  let gutterStartRight = w;
+  for (let x = w - 1; x >= w - maxMarginW; x--) {
+    let darkCount = 0;
+    for (let y = Math.round(h * 0.1); y < Math.round(h * 0.9); y += sampleStepY) {
+      if (data[y * w + x] < 145) darkCount++;
+    }
+    if (darkCount >= numSampleRows * 0.35) {
+      gutterStartRight = x - 3;
+    } else if (gutterStartRight < w && x < gutterStartRight - 5) {
+      break;
+    }
+  }
+
+  // Smoothly blend left gutter band to pure paper white (255)
+  if (gutterEndLeft > 0) {
+    const fadeW = Math.min(gutterEndLeft + 10, maxMarginW);
+    for (let y = 0; y < h; y++) {
+      const rowOffset = y * w;
+      for (let x = 0; x <= fadeW; x++) {
+        const val = data[rowOffset + x];
+        if (val < 248) {
+          const t = Math.min(1.0, x / Math.max(1, fadeW));
+          const wgt = t * t; // Ease-in: 0 at edge (100% white), 1 at inner boundary
+          data[rowOffset + x] = Math.round(val * wgt + 255 * (1 - wgt));
+        }
+      }
+    }
+  }
+
+  // Smoothly blend right gutter band to pure paper white (255)
+  if (gutterStartRight < w) {
+    const fadeW = Math.max(gutterStartRight - 10, w - maxMarginW);
+    for (let y = 0; y < h; y++) {
+      const rowOffset = y * w;
+      for (let x = fadeW; x < w; x++) {
+        const val = data[rowOffset + x];
+        if (val < 248) {
+          const t = Math.min(1.0, (w - 1 - x) / Math.max(1, w - 1 - fadeW));
+          const wgt = t * t;
+          data[rowOffset + x] = Math.round(val * wgt + 255 * (1 - wgt));
+        }
+      }
+    }
+  }
+}
+
+/**
  * Illumination Correction & Clean Document Scanner Pipeline.
  * Eliminates shadows, purges salt-and-pepper background noise, and creates crisp text scans.
  */
@@ -437,6 +512,9 @@ function enhanceDocument(warpedMat, options = {}) {
         // Fast multi-scale illumination estimation on L channel
         bgMap = estimateIllumination(L, shadowKernelSize);
         cv.divide(L, bgMap, normL, 255);
+
+        // Suppress gutter/spine shadows in outer margins
+        suppressMarginGutterShadows(normL);
 
         // Sharpen L channel if requested
         if (sharpen > 0) {
@@ -480,6 +558,9 @@ function enhanceDocument(warpedMat, options = {}) {
         bgMap = estimateIllumination(gray, shadowKernelSize);
         cv.divide(gray, bgMap, normalized, 255);
 
+        // Suppress gutter/spine shadows in outer margins
+        suppressMarginGutterShadows(normalized);
+
         if (mode === "bw") {
           // B&W Crisp Document Mode (vFlat/CamScanner style clean paper):
           // 1. Sharpening
@@ -512,8 +593,13 @@ function enhanceDocument(warpedMat, options = {}) {
           let bgMask = new cv.Mat();
           cv.threshold(normalized, bgMask, 185, 255, cv.THRESH_BINARY);
 
+          let rawBw = new cv.Mat();
+          cv.bitwise_or(adaptiveBw, bgMask, rawBw);
+
+          // 5. Stroke Smoothing & Salt-and-Pepper Denoise:
+          // Median blur (size 3) purges 1-2px speckle noise and smooths jagged font outlines
           let finalBw = new cv.Mat();
-          cv.bitwise_or(adaptiveBw, bgMask, finalBw);
+          cv.medianBlur(rawBw, finalBw, 3);
 
           result = new cv.Mat();
           cv.cvtColor(finalBw, result, cv.COLOR_GRAY2RGBA);
@@ -521,6 +607,7 @@ function enhanceDocument(warpedMat, options = {}) {
           stretched.delete();
           adaptiveBw.delete();
           bgMask.delete();
+          rawBw.delete();
           finalBw.delete();
           return result;
         } else {
@@ -819,13 +906,32 @@ function estimateSpineSide(mat) {
 }
 
 /**
- * Calculates smooth vertical displacement shifts[x] across width w.
- * Strictly models the physical book page curve using a C2-continuous smooth Hermite model:
- * 1. Flat outer region (0 .. 55%): shifts[x] === 0 (100% straight, no distortion)
- * 2. Spine curved region (55% .. 100%): monotonic, infinitely smooth leveling to eliminate spine lift
- * Zero bins, zero discrete steps, zero jagged sawteeth ("삐뚤빼뚤 방지").
+ * Catmull-Rom Cubic Spline interpolation
+ * Smoothly interpolates an array of control points into a continuous C1/C2 curve.
  */
-function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
+function interpolateSpline(points, t) {
+  const p0 = points[0];
+  const p1 = points[1];
+  const p2 = points[2];
+  const p3 = points[3];
+
+  const t2 = t * t;
+  const t3 = t2 * t;
+
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
+}
+
+/**
+ * Self-Adaptive Data-Driven Dewarping.
+ * Profiles actual text line trajectories across N columns.
+ * Automatically levels any curvature: convex arch (∩), sagging (U), spine curl, or keeps flat pages untouched.
+ */
+function calculateAdaptiveDewarpShifts(mat, strength = 1.0) {
   const w = mat.cols;
   const h = mat.rows;
   const sw = 600;
@@ -842,7 +948,9 @@ function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
   let contours = null;
   let hierarchy = null;
 
-  const lifts = [];
+  const NUM_BUCKETS = 24; // 24 sampling stations across page width
+  const bucketOffsets = Array.from({ length: NUM_BUCKETS }, () => []);
+  let validLinesCount = 0;
 
   try {
     small = new cv.Mat();
@@ -854,15 +962,16 @@ function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
     thresh = new cv.Mat();
     cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 21, 7);
 
-    // Mask out 4% margin
+    // Mask out 3% margin to remove frame artifacts
     borderMask = cv.Mat.zeros(sh, sw, cv.CV_8U);
-    const mx = Math.round(sw * 0.04);
-    const my = Math.round(sh * 0.04);
+    const mx = Math.round(sw * 0.03);
+    const my = Math.round(sh * 0.03);
     const roi = borderMask.roi(new cv.Rect(mx, my, sw - 2 * mx, sh - 2 * my));
     roi.setTo(new cv.Scalar(255));
     roi.delete();
     cv.bitwise_and(thresh, borderMask, thresh);
 
+    // Merge characters into solid text line bands
     const kWidth = Math.max(25, Math.round(sw * 0.07));
     kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kWidth, 3));
     connected = new cv.Mat();
@@ -874,11 +983,11 @@ function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
 
     const connData = connected.data;
 
-    // Filter for substantial paragraph lines in main body (exclude top/bottom margins)
-    const minLineWidth = Math.round(sw * 0.28);
-    const maxLineHeight = Math.round(sh * 0.08);
-    const bodyTop = Math.round(sh * 0.05);
-    const bodyBottom = Math.round(sh * 0.95);
+    // Filter substantial text lines in main body
+    const minLineWidth = Math.round(sw * 0.22);
+    const maxLineHeight = Math.round(sh * 0.09);
+    const bodyTop = Math.round(sh * 0.04);
+    const bodyBottom = Math.round(sh * 0.96);
 
     for (let i = 0; i < contours.size(); i++) {
       const cnt = contours.get(i);
@@ -890,68 +999,49 @@ function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
         (rect.y + rect.height) <= bodyBottom &&
         rect.width >= minLineWidth &&
         rect.height <= maxLineHeight &&
-        (rect.width / Math.max(1, rect.height)) >= 2.2
+        (rect.width / Math.max(1, rect.height)) >= 2.0
       ) {
-        // Sample flat outer side vs spine side based on page spine orientation
-        let sumYFlat = 0, countYFlat = 0;
-        let sumYSpine = 0, countYSpine = 0;
+        // Collect Y-center coordinates at each bucket station that intersects this line
+        const lineBucketY = new Map();
+        let sumY = 0;
+        let countY = 0;
 
-        if (isSpineOnRight) {
-          // Left 25% is outer flat; Right 25% is spine
-          const xEndFlat = rect.x + Math.round(rect.width * 0.25);
-          for (let tx = rect.x + 3; tx <= xEndFlat; tx += 2) {
-            for (let y = rect.y; y < rect.y + rect.height; y++) {
-              if (connData[y * sw + tx] > 0) {
-                sumYFlat += y;
-                countYFlat++;
+        for (let b = 0; b < NUM_BUCKETS; b++) {
+          const bx = Math.round((b / (NUM_BUCKETS - 1)) * (sw - 1));
+          if (bx >= rect.x + 4 && bx <= rect.x + rect.width - 4) {
+            let colSumY = 0;
+            let colCount = 0;
+            const xMin = Math.max(rect.x, bx - 2);
+            const xMax = Math.min(rect.x + rect.width - 1, bx + 2);
+            for (let tx = xMin; tx <= xMax; tx++) {
+              for (let y = rect.y; y < rect.y + rect.height; y++) {
+                if (connData[y * sw + tx] > 0) {
+                  colSumY += y;
+                  colCount++;
+                }
               }
             }
-          }
-
-          const xStartSpine = rect.x + Math.round(rect.width * 0.75);
-          for (let tx = xStartSpine; tx <= rect.x + rect.width - 3; tx += 2) {
-            for (let y = rect.y; y < rect.y + rect.height; y++) {
-              if (connData[y * sw + tx] > 0) {
-                sumYSpine += y;
-                countYSpine++;
-              }
-            }
-          }
-        } else {
-          // Left 25% is spine; Right 25% is outer flat
-          const xEndSpine = rect.x + Math.round(rect.width * 0.25);
-          for (let tx = rect.x + 3; tx <= xEndSpine; tx += 2) {
-            for (let y = rect.y; y < rect.y + rect.height; y++) {
-              if (connData[y * sw + tx] > 0) {
-                sumYSpine += y;
-                countYSpine++;
-              }
-            }
-          }
-
-          const xStartFlat = rect.x + Math.round(rect.width * 0.75);
-          for (let tx = xStartFlat; tx <= rect.x + rect.width - 3; tx += 2) {
-            for (let y = rect.y; y < rect.y + rect.height; y++) {
-              if (connData[y * sw + tx] > 0) {
-                sumYFlat += y;
-                countYFlat++;
-              }
+            if (colCount >= 4) {
+              const cy = colSumY / colCount;
+              lineBucketY.set(b, cy);
+              sumY += cy;
+              countY++;
             }
           }
         }
 
-        if (countYFlat > 10 && countYSpine > 10) {
-          const yFlat = sumYFlat / countYFlat;
-          const ySpine = sumYSpine / countYSpine;
-          const lift = ySpine - yFlat; // Negative when curled upward toward spine
-          if (lift > -sh * 0.10 && lift < sh * 0.05) {
-            lifts.push(lift);
+        // Only accept lines that span across at least 4 buckets
+        if (countY >= 4) {
+          validLinesCount++;
+          const meanY = sumY / countY;
+          for (const [b, cy] of lineBucketY.entries()) {
+            bucketOffsets[b].push(cy - meanY);
           }
         }
       }
     }
   } catch (err) {
-    console.warn("[Dewarp] Curvature extraction error:", formatCvError(err));
+    console.warn("[AdaptiveDewarp] Curvature extraction error:", formatCvError(err));
   } finally {
     if (small) small.delete();
     if (gray) gray.delete();
@@ -966,51 +1056,115 @@ function calculateSpineDewarpShifts(mat, isSpineOnRight, strength) {
   const shifts = new Float32Array(w);
 
   // If insufficient lines, keep straight
-  if (lifts.length === 0) {
-    console.log(`[Dewarp] Straight page: no curvature detected.`);
+  if (validLinesCount < 2) {
+    console.log(`[AdaptiveDewarp] Insufficient text lines (${validLinesCount}) for curvature modeling.`);
     return shifts;
   }
 
-  lifts.sort((a, b) => a - b);
-  const medianLift = lifts[Math.floor(lifts.length / 2)];
-  const minCurlThreshold = -1.5; // at least 1.5px upward lift in 600px width scale
+  // Aggregate bucket deviations using median to get raw profile F[b]
+  const rawProfile = new Float32Array(NUM_BUCKETS);
+  const validBuckets = [];
 
-  if (medianLift >= minCurlThreshold) {
-    console.log(`[Dewarp] Page is already straight (measured lift: ${medianLift.toFixed(2)}px >= threshold ${minCurlThreshold}px). No warp needed.`);
-    return shifts;
-  }
-
-  // medianLift is negative (text curled upward).
-  // Downward shift: dst(y) reads src(y - targetA) => shift must be negative.
-  const maxDisplacement = -medianLift * invScale * strength;
-  const maxAllowed = h * 0.08;
-  const targetA = Math.min(maxAllowed, Math.max(0, maxDisplacement));
-
-  console.log(`[Dewarp] Genuine spine curl detected (lift=${medianLift.toFixed(2)}px). Applying smooth parametric flattening (amplitude=${targetA.toFixed(1)}px).`);
-
-  // Outer 45% is completely flat (0 shift).
-  // Inner 55% curves smoothly with Hermite cubic: 3t^2 - 2t^3 (zero derivative at inflection)
-  const spineStartRatio = 0.45;
-
-  for (let x = 0; x < w; x++) {
-    const xRatio = x / w;
-    if (isSpineOnRight) {
-      if (xRatio <= spineStartRatio) {
-        shifts[x] = 0;
-      } else {
-        const t = (xRatio - spineStartRatio) / (1.0 - spineStartRatio);
-        // Negative shift shifts pixels downward into flat alignment
-        shifts[x] = -targetA * (3 * t * t - 2 * t * t * t);
-      }
+  for (let b = 0; b < NUM_BUCKETS; b++) {
+    const list = bucketOffsets[b];
+    if (list.length > 0) {
+      list.sort((a, b) => a - b);
+      rawProfile[b] = list[Math.floor(list.length / 2)];
+      validBuckets.push(b);
     } else {
-      if (xRatio >= (1.0 - spineStartRatio)) {
-        shifts[x] = 0;
-      } else {
-        const t = ((1.0 - spineStartRatio) - xRatio) / (1.0 - spineStartRatio);
-        // Negative shift shifts pixels downward into flat alignment
-        shifts[x] = -targetA * (3 * t * t - 2 * t * t * t);
+      rawProfile[b] = 0;
+    }
+  }
+
+  // Need at least 6 valid buckets across the page
+  if (validBuckets.length < 6) {
+    console.log(`[AdaptiveDewarp] Text coverage too sparse (${validBuckets.length} buckets).`);
+    return shifts;
+  }
+
+  // Fill in any missing buckets by linear interpolation from nearest valid neighbors
+  for (let b = 0; b < NUM_BUCKETS; b++) {
+    if (bucketOffsets[b].length === 0) {
+      let prev = b - 1;
+      while (prev >= 0 && bucketOffsets[prev].length === 0) prev--;
+      let next = b + 1;
+      while (next < NUM_BUCKETS && bucketOffsets[next].length === 0) next++;
+
+      if (prev >= 0 && next < NUM_BUCKETS) {
+        const t = (b - prev) / (next - prev);
+        rawProfile[b] = (1 - t) * rawProfile[prev] + t * rawProfile[next];
+      } else if (prev >= 0) {
+        rawProfile[b] = rawProfile[prev];
+      } else if (next < NUM_BUCKETS) {
+        rawProfile[b] = rawProfile[next];
       }
     }
+  }
+
+  // Smooth the raw profile with a 3-tap low-pass filter (0.25, 0.5, 0.25)
+  const smoothed = new Float32Array(NUM_BUCKETS);
+  for (let b = 0; b < NUM_BUCKETS; b++) {
+    const p0 = (b > 0) ? rawProfile[b - 1] : rawProfile[b];
+    const p1 = rawProfile[b];
+    const p2 = (b < NUM_BUCKETS - 1) ? rawProfile[b + 1] : rawProfile[b];
+    smoothed[b] = 0.25 * p0 + 0.5 * p1 + 0.25 * p2;
+  }
+
+  // Baseline reference: strictly horizontal target level to eliminate both arching and residual tilt
+  const refStart = (smoothed[0] + smoothed[1]) / 2;
+  const refEnd = (smoothed[NUM_BUCKETS - 2] + smoothed[NUM_BUCKETS - 1]) / 2;
+  const targetLevel = (refStart + refEnd) / 2;
+
+  // Compute curvature & tilt deviation relative to perfect horizontal baseline
+  const deviations = new Float32Array(NUM_BUCKETS);
+  let minDev = Infinity;
+  let maxDev = -Infinity;
+
+  for (let b = 0; b < NUM_BUCKETS; b++) {
+    deviations[b] = smoothed[b] - targetLevel;
+    if (deviations[b] < minDev) minDev = deviations[b];
+    if (deviations[b] > maxDev) maxDev = deviations[b];
+  }
+
+  const peakToPeak = maxDev - minDev;
+  const minCurlThreshold = 1.0; // in 600px width scale
+
+  if (peakToPeak < minCurlThreshold) {
+    console.log(`[AdaptiveDewarp] Page text is already straight (measured curvature: ${peakToPeak.toFixed(2)}px < ${minCurlThreshold}px). No warp needed.`);
+    return shifts;
+  }
+
+  // Characterize detected shape
+  const midIndex = Math.floor(NUM_BUCKETS / 2);
+  const midDev = (deviations[midIndex - 1] + deviations[midIndex] + deviations[midIndex + 1]) / 3;
+  let shapeDesc = "Complex Wave";
+  if (midDev < -0.6) shapeDesc = "Convex Arch / Hill (∩)";
+  else if (midDev > 0.6) shapeDesc = "Concave Sagging (U)";
+  else if (Math.abs(deviations[2] - deviations[NUM_BUCKETS - 3]) > 1.5) shapeDesc = "Asymmetric Spine Curl";
+
+  console.log(`[AdaptiveDewarp] Detected text curvature: ${shapeDesc} (peak-to-peak=${peakToPeak.toFixed(2)}px, mid=${midDev.toFixed(2)}px). Applying adaptive leveling with 1.25x boost, strength=${strength}.`);
+
+  // Compute control point shifts at 24 stations with 1.25x boost factor
+  // Compensates for morphological text band smoothing attenuation
+  const BOOST_FACTOR = 1.25;
+  const maxAllowed = h * 0.08;
+  const stationShifts = new Float32Array(NUM_BUCKETS);
+  for (let b = 0; b < NUM_BUCKETS; b++) {
+    const target = deviations[b] * BOOST_FACTOR * invScale * strength;
+    stationShifts[b] = Math.max(-maxAllowed, Math.min(maxAllowed, target));
+  }
+
+  // Spline interpolation across all x columns for C1/C2 smooth continuity
+  for (let x = 0; x < w; x++) {
+    const normX = (x / (w - 1)) * (NUM_BUCKETS - 1);
+    const i1 = Math.floor(normX);
+    const i2 = Math.min(NUM_BUCKETS - 1, i1 + 1);
+    const i0 = Math.max(0, i1 - 1);
+    const i3 = Math.min(NUM_BUCKETS - 1, i2 + 1);
+
+    const t = normX - i1;
+    const pts = [stationShifts[i0], stationShifts[i1], stationShifts[i2], stationShifts[i3]];
+    shifts[x] = interpolateSpline(pts, t);
   }
 
   return shifts;
@@ -1103,18 +1257,10 @@ function dewarpTextCurves(srcMat, options = {}) {
       currentMat = srcMat.clone();
     }
 
-    // Step 2: Spine Detection
-    let spineSide = options.spineSide || null;
-    if (!spineSide || (spineSide !== "left" && spineSide !== "right")) {
-      spineSide = estimateSpineSide(currentMat);
-    }
-    const isSpineOnRight = (spineSide === "right");
-    console.log(`[Dewarp] Spine side: ${isSpineOnRight ? "RIGHT" : "LEFT"}`);
+    // Step 2: Self-Adaptive Data-Driven Dewarp Shifts (Convex, Concave, Spine Curl, Flat)
+    const shifts = calculateAdaptiveDewarpShifts(currentMat, strength);
 
-    // Step 3: Dewarp Shifts
-    const shifts = calculateSpineDewarpShifts(currentMat, isSpineOnRight, strength);
-
-    // Step 4: Apply Column Remap
+    // Step 3: Apply Column Remap
     dewarpedMat = applyVerticalColumnShifts(currentMat, shifts);
     console.log(`[Dewarp] Dewarp completed successfully with strength=${strength}`);
 
@@ -1176,6 +1322,100 @@ function splitDoublePageSpread(mat) {
     return { leftMat, rightMat, splitX };
   } finally {
     gray.delete();
+  }
+}
+
+/**
+ * Detects optimal crop bounding box around active document content.
+ * Discards outer scanner bed margins while preserving headers, body, diagrams, and page numbers.
+ */
+function detectSmartCropBounds(mat) {
+  const w = mat.cols;
+  const h = mat.rows;
+  const sw = 600;
+  const sh = Math.max(100, Math.round((h * sw) / w));
+
+  let small = new cv.Mat();
+  let gray = new cv.Mat();
+  let thresh = new cv.Mat();
+  let mask = null;
+
+  try {
+    cv.resize(mat, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
+    cv.cvtColor(small, gray, cv.COLOR_RGBA2GRAY);
+
+    // Otsu threshold to separate dark text/ink from white paper
+    cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+
+    // Clear outer 2.5% to disregard any extreme scanner frame/bed borders
+    const borderMx = Math.round(sw * 0.025);
+    const borderMy = Math.round(sh * 0.025);
+    mask = cv.Mat.zeros(sh, sw, cv.CV_8U);
+    const roi = mask.roi(new cv.Rect(borderMx, borderMy, sw - 2 * borderMx, sh - 2 * borderMy));
+    roi.setTo(new cv.Scalar(255));
+    roi.delete();
+    cv.bitwise_and(thresh, mask, thresh);
+
+    const threshData = thresh.data;
+
+    // Horizontal & vertical projections
+    const rowCounts = new Int32Array(sh);
+    const colCounts = new Int32Array(sw);
+
+    for (let y = borderMy; y < sh - borderMy; y++) {
+      const rowOffset = y * sw;
+      for (let x = borderMx; x < sw - borderMx; x++) {
+        if (threshData[rowOffset + x] > 0) {
+          rowCounts[y]++;
+          colCounts[x]++;
+        }
+      }
+    }
+
+    // Threshold for content presence
+    const contentThreshRow = Math.max(3, Math.round(sw * 0.005));
+    const contentThreshCol = Math.max(3, Math.round(sh * 0.005));
+
+    let top = borderMy;
+    while (top < sh - borderMy && rowCounts[top] < contentThreshRow) top++;
+
+    let bottom = sh - 1 - borderMy;
+    while (bottom > top && rowCounts[bottom] < contentThreshRow) bottom--;
+
+    let left = borderMx;
+    while (left < sw - borderMx && colCounts[left] < contentThreshCol) left++;
+
+    let right = sw - 1 - borderMx;
+    while (right > left && colCounts[right] < contentThreshCol) right--;
+
+    // If detection failed or area is too small, fallback to safe 2% margin
+    if (right <= left + sw * 0.3 || bottom <= top + sh * 0.3) {
+      return { top: 0.02, bottom: 0.98, left: 0.02, right: 0.98 };
+    }
+
+    // Add generous 2.5% safety padding around content
+    const padX = Math.round(sw * 0.025);
+    const padY = Math.round(sh * 0.025);
+
+    const safeTop = Math.max(0, top - padY) / sh;
+    const safeBottom = Math.min(sh, bottom + padY) / sh;
+    const safeLeft = Math.max(0, left - padX) / sw;
+    const safeRight = Math.min(sw, right + padX) / sw;
+
+    return {
+      top: parseFloat(safeTop.toFixed(3)),
+      bottom: parseFloat(safeBottom.toFixed(3)),
+      left: parseFloat(safeLeft.toFixed(3)),
+      right: parseFloat(safeRight.toFixed(3))
+    };
+  } catch (err) {
+    console.warn("[SmartCrop] Detection failed, fallback to 96% margin:", formatCvError(err));
+    return { top: 0.02, bottom: 0.98, left: 0.02, right: 0.98 };
+  } finally {
+    small.delete();
+    gray.delete();
+    thresh.delete();
+    if (mask) mask.delete();
   }
 }
 
@@ -1465,6 +1705,18 @@ self.onmessage = async (e) => {
           splitResult.leftMat.delete();
           splitResult.rightMat.delete();
         }
+      }
+      return;
+    }
+
+    if (action === "DETECT_SMART_CROP") {
+      const { imageData } = payload;
+      const srcMat = imageDataToMat(imageData);
+      try {
+        const ratios = detectSmartCropBounds(srcMat);
+        self.postMessage({ id, status: "SUCCESS", result: { ratios } });
+      } finally {
+        srcMat.delete();
       }
       return;
     }
