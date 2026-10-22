@@ -1,6 +1,6 @@
-# Oh My Image Manager - Smart Image Cropper & AI Background Remover Studio
+# Oh My Image Manager - Smart Image Cropper, AI Background Remover & Document Scanner
 
-> **A powerful, privacy-first Manifest V3 Chrome Extension for high-volume batch image cropping, ZIP archiving, and on-device AI background removal.**
+> **A powerful, privacy-first Manifest V3 Chrome Extension for high-volume batch image cropping, on-device AI background removal, and smart curve-flattening book & document scanning.**
 
 [한국어 설명서 (Korean Documentation)](README.ko.md)
 
@@ -38,20 +38,32 @@
 - Batch crop all images uniformly with preset ratios (eBook margins, 1:1, 4:3, 16:9) or custom margins (Top/Bottom/Left/Right).
 - Package and download all processed images into a **ZIP archive** in seconds with an intuitive real-time progress bar.
 
-### 3. Real-Time Dual Preview Engine
+### 3. Smart Document & Book Scan Studio
+- **High-Fidelity On-Device Scan Engine**: Convert smartphone photos of books, receipts, and documents into crisp, pure-white A4 digital scans comparable to flatbed hardware scanners.
+- **Self-Adaptive Curve Dewarping**: Automatic curvature estimation using 24-section midline multi-sampling and continuous Catmull-Rom spline interpolation to flatten curled pages, spine humps, and sag.
+- **3 Professional Scan Look Filters**:
+  - `Clear Black & White (B&W)`: Pure white backgrounds and bold text ideal for office documents (with 3×3 median filtering for speckle noise elimination).
+  - `Grayscale`: Smooth tonal depth preserving pencil sketches, technical drawings, and textures.
+  - `Color Scan`: Retains full color in illustrations and photos while cleanly removing ambient background shadows.
+- **Spine Shadow Band Detection & Roll-off Whitening**: Detects dark binding shadows along the spine and blends them smoothly into natural paper white.
+- **✨ Smart Auto Content Crop & Zero-Lag 60fps Guide**: Snips unnecessary margins automatically, with instant 60fps live guide boxes for manual fine-tuning without debounce lag.
+- **Auto Split Spread**: Automatically splits landscape two-page open book photos into individual left and right pages upon upload.
+- **Unified A4 PDF & High-Res ZIP Export**: Compile all scanned pages into a single multi-page A4 PDF or download high-resolution individual images packaged in a ZIP archive.
+
+### 4. Real-Time Dual Preview Engine
 - **Crop Guide Box**: Visually inspect the crop region with an overlay box and darkened margins.
 - **Cropped Output Tab**: Instant rendering of the final cropped image for fast pre-validation.
 
-### 4. One-Click Web Tab Capture & Auto-Crop
+### 5. One-Click Web Tab Capture & Auto-Crop
 - Capture your active browser tab from the popup menu, apply preset crop bounds automatically, and download instantly.
 
-### 5. Multi-Language (i18n) & Modern Dark/Light Themes
+### 6. Multi-Language (i18n) & Modern Dark/Light Themes
 - Full internationalization support for **English** and **Korean** across all screens (Popup, Workspace, Remover, Guide).
 - Automatic browser language detection with a real-time language selector dropdown.
 - Sleek Dark and Light themes with persistent settings.
 
-### 6. 100% Local & Privacy-Focused
-- All AI inferences (Transformers.js / WebAssembly / WebGPU) and HTML5 Canvas operations execute strictly client-side.
+### 7. 100% Local & Privacy-Focused
+- All AI inferences (Transformers.js / WebAssembly / WebGPU), OpenCV processing, and HTML5 Canvas operations execute strictly client-side.
 - Zero server uploads — complete confidentiality for personal and business images, even offline.
 
 ---
@@ -89,6 +101,7 @@ oh-my-img-manager/
 ├── popup/                   # Toolbar popup UI & tab capture routing
 ├── workspace/               # Batch crop workspace & Canvas engine
 ├── remover/                 # AI Background Remover studio & Web Worker
+├── scanner/                 # Smart Document & Book Scan Studio and OpenCV dewarping engine
 ├── guide.html               # All-in-one user guide (EN/KO supported)
 ├── DESIGN.md                # Design system specification
 ├── I18N_GUIDE.md            # Internationalization (i18n) standard guide
@@ -130,9 +143,42 @@ Install in any Chromium-based browser (Chrome, Edge, Brave, Whale) in under a mi
 3. Choose a crop preset or fine-tune margin sliders on the left panel.
 4. Click **Batch Crop & Download ZIP** to export all cropped images in a compressed archive.
 
+### Smart Document & Book Scan Studio
+1. Open the popup menu and click **Smart Book & Document Scanner**.
+2. Drag and drop photos/folders or paste directly with `Ctrl + V`. (Use 'Auto Split Spread' for open book spreads).
+3. Select your desired scan filter (B&W, Grayscale, Color) and enable Curve Dewarping.
+4. Fine-tune boundaries using **Smart Auto** or margin sliders, then click **Apply Current Crop to All Pages**.
+5. Click **Save as A4 PDF** or **Download High-Res ZIP** to export your scans.
+
 ---
 
 ## 📜 Version History
+
+### 🚀 v1.6.0 (`2026-10-22`)
+**Smart Document & Book Scan Studio with Self-Adaptive Curve Dewarping & High-Performance Post-Processing**
+- **New Smart Document & Book Scan Studio (`scanner/`)**:
+  - Dedicated high-performance studio converting smartphone-captured book and document photos into clean, flat A4 scanned pages.
+  - Multi-file & folder drag-and-drop registration, direct clipboard paste (`Ctrl+V`), and batch page management filmstrip.
+- **Self-Adaptive Curve Dewarping Engine**:
+  - Intelligent dewarping algorithm designed for thick books, curled pages, and spine distortions.
+  - 24-section midline multi-sampling and Catmull-Rom spline continuous interpolation for smooth curvature estimation.
+  - Target leveling referenced to the absolute horizontal plane and 1.25× correction boost eliminating residual curvature and tilt.
+- **3 Professional Scan Look Filters & Spec Cleaners**:
+  - `Clear Black & White (B&W)`: Pure white background with crisp, dark text (integrated 3×3 median filtering to remove speckle noise and smooth glyph contours).
+  - `Grayscale`: Smooth shading preservation ideal for pencil sketches and engineering diagrams.
+  - `Color Scan`: Preserves illustration and photo hues while eliminating ambient paper shadows.
+  - **Spine Shadow Band Detection & Roll-off Whitening**: Automatically detects deep shadow bands along book bindings and blends them seamlessly into paper white.
+- **Smart Auto Content Crop & Zero-Lag 60fps Live Guide**:
+  - **✨ Smart Auto Crop**: Automated content block detection that snips redundant margins and background clutter with one click.
+  - **Zero-Lag Real-Time Guide Box**: Removed debounce spinners during slider adjustments, enabling ultra-smooth 60fps live guide bounding boxes.
+  - **Batch Workflow Optimization**: Fine-tune all four borders seamlessly and apply changes across all pages simultaneously with `[Apply Current Crop to All Pages]`.
+- **Smart Productivity Utilities & Export Formats**:
+  - **Auto Split Spread**: Automatically splits landscape two-page open book photos into individual left and right pages.
+  - **A4 Multi-Page PDF & High-Res ZIP Export**: One-click generation of unified A4 PDF documents or compressed ZIP archives of processed pages.
+  - **Intuitive Viewport Navigation**: Unified mouse pan (left-click drag), wheel zoom, and clip-free margin scrolling.
+  - **Unified Sunflower Yellow (#EFD430) Design System**: Standardized action colors and workspace-style drop zones.
+
+---
 
 ### 🚀 v1.5.0 (`2026-10-04`)
 **Vector Object Studio (Shapes, Sharp Arrows) & 3-Tier Text Inspector with Local Font Scanner**

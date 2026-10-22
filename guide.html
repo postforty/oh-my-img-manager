@@ -617,9 +617,9 @@
         <div class="brand-title-area">
           <h1>
             <span data-i18n="guideMainTitle">Oh My Image Manager 사용 설명서</span>
-            <span class="badge">v1.4</span>
+            <span class="badge">v1.6</span>
           </h1>
-          <p data-i18n="guideMainDesc">스마트 이미지 일괄 크롭 & AI 온디바이스 배경 제거(누끼) 스튜디오</p>
+          <p data-i18n="guideMainDesc">스마트 이미지 일괄 크롭, 온디바이스 AI 누끼 & 도서·문서 스캔 스튜디오</p>
         </div>
       </div>
       <div class="header-actions">
@@ -655,6 +655,16 @@
           </svg>
           <span data-i18n="navRemoverStudio">누끼 스튜디오</span>
         </a>
+        <a href="scanner/scanner.html" class="btn" target="_blank" data-i18n-title="navScannerStudioTitle" title="도서·문서 스캔 스튜디오로 이동">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <line x1="8" y1="6" x2="16" y2="6"></line>
+            <line x1="8" y1="10" x2="14" y2="10"></line>
+          </svg>
+          <span data-i18n="navScannerStudio">문서 스캐너</span>
+        </a>
         <a href="workspace/workspace.html" class="btn" target="_blank" data-i18n-title="navCropStudioTitle">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round">
@@ -680,6 +690,11 @@
             d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
           </path>
         </svg> <span data-i18n="navRemover">AI 누끼 스튜디오</span></a>
+      <a href="#scanner"><svg class="emoji-icon" viewBox="0 0 24 24" width="16" height="16" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg> <span data-i18n="navScanner">도서·문서 스캐너</span></a>
       <a href="#cropper"><svg class="emoji-icon" viewBox="0 0 24 24" width="16" height="16" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -726,8 +741,22 @@
               </path>
             </svg>
           </div>
-          <h4>AI 스마트 누끼 스튜디오</h4>
-          <p>최신 RMBG-1.4 모델로 원클릭 고화질 배경 제거, 스포이드 투명화, 수동 리터치 브러시 및 고품질 리사이즈를 지원합니다.</p>
+          <h4>AI 스마트 누끼 & 개체 스튜디오</h4>
+          <p>원클릭 고화질 배경 제거, 스포이드 투명화, 수동 리터치 브러시, 정밀 도형·화살표 개체 및 로컬 폰트 3단 텍스트 인스펙터를 지원합니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              <line x1="8" y1="6" x2="16" y2="6"></line>
+              <line x1="8" y1="10" x2="14" y2="10"></line>
+            </svg>
+          </div>
+          <h4>스마트 도서 & 문서 스캔 스튜디오</h4>
+          <p>카메라 책 사진의 굴곡을 자가 적응형으로 펴주고 그림자를 지워 순백의 평판 스캔본(A4 PDF / 고화질 ZIP)으로 변환합니다.</p>
         </div>
 
         <div class="card">
@@ -840,11 +869,82 @@
         <li><strong>고품질 Mipmap 보간 & 되돌리기:</strong> 계단 현상(Aliasing) 없이 선명하게 축소되며, 마음에 들지 않을 경우 언제든 <span class="kbd">Ctrl</span> + <span class="kbd">Z</span>로 이전 크기로 되돌릴 수 있습니다.</li>
       </ul>
 
-      <h3>8. 저장 포맷 선택 및 내보내기</h3>
+      <h3>8. 벡터 도형 및 날렵한 정밀 화살표 추가</h3>
+      <ul>
+        <li><strong>벡터 개체 도구:</strong> 직사각형(모서리 둥글기 조절), 원형/타원, 직선, 그리고 예리하고 날렵한 쉐브론 화살표(Sharp Chevron Arrow)를 캔버스에 자유롭게 배치합니다.</li>
+        <li><strong>정밀 변형 & 회전:</strong> 8방향 리사이즈 핸들과 회전 핸들로 크기 및 방향을 직관적으로 제어하며, 2×2 레이어 관리 버튼으로 개체 순서(앞으로/뒤로/복제/삭제)를 제어합니다.</li>
+        <li><strong>선택 개체 복제 (<span class="kbd">Ctrl</span> + <span class="kbd">D</span>):</strong> 자주 사용하는 도형이나 화살표를 단축키로 손쉽게 연속 복제할 수 있습니다.</li>
+      </ul>
+
+      <h3>9. 프로페셔널 3단 텍스트 인스펙터</h3>
+      <ul>
+        <li><strong>글(채우기) & 아우터 스트로크 외곽선:</strong> 글자 색상 채우기와 외곽선(Stroke)을 독립 체크박스로 분리 지원합니다. 굵기를 최대 24px까지 키워도 글자 안쪽을 파먹지 않는 고급 외곽선 렌더링이 적용됩니다.</li>
+        <li><strong>입체 드롭 섀도우:</strong> 그림자 색상, 흐림(Blur), 거리(Offset) 슬라이더를 통해 가독성 높은 입체 텍스트를 연출할 수 있습니다.</li>
+        <li><strong>내 PC 폰트 불러오기:</strong> <code>내 PC 폰트 불러오기</code> 버튼을 누르면 브라우저의 폰트 탐색 API를 통해 사용자 컴퓨터에 설치된 모든 로컬 폰트를 드롭다운에 즉시 추가하여 사용할 수 있습니다.</li>
+      </ul>
+
+      <h3>10. 저장 포맷 선택 및 내보내기</h3>
       <ul>
         <li><strong>이미지 다운로드:</strong> 원하는 저장 포맷(PNG, WEBP, JPEG, GIF)을 선택하여 컴퓨터에 다운로드합니다. (PNG와 WEBP는 고품질 투명 배경을 지원하며, JPEG 선택 시 흰색 배경 자동 합성, GIF는 256색 및 1비트 투명도로 저장됩니다.)</li>
         <li><strong>클립보드로 복사 (<span class="kbd">Ctrl</span> + <span class="kbd">C</span>):</strong> 포토샵, 피그마, 파워포인트, 메신저
           등에 바로 붙여넣을 수 있도록 클립보드에 복사합니다.</li>
+      </ul>
+    </section>
+
+    <!-- Scanner Section -->
+    <section id="scanner">
+      <h2>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          <line x1="8" y1="6" x2="16" y2="6"></line>
+          <line x1="8" y1="10" x2="14" y2="10"></line>
+        </svg>
+        스마트 도서 & 문서 스캔 스튜디오 사용법
+      </h2>
+      <p>스마트폰 카메라로 촬영한 책이나 서류, 영수증, 도면 사진을 실제 평판 스캐너로 스캔한 듯한 순백의 A4 고화질 디지털 문서로 변환하는 전문 워크스페이스입니다.</p>
+
+      <div class="feature-box">
+        <strong><svg class="emoji-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg> 스마트 도서 스캔 핵심 워크플로우</strong>
+        <ol>
+          <li><strong>사진 등록:</strong> 스마트폰으로 찍은 책 사진이나 폴더를 드래그 앤 드롭하거나 <span class="kbd">Ctrl</span> + <span class="kbd">V</span> 로 클립보드에서 바로 붙여넣습니다.</li>
+          <li><strong>펼친 양면 자동 2장 분할:</strong> 좌우 2페이지가 함께 찍힌 가로형 사진인 경우 <code>펼친 양면 자동 2장 분할</code> 옵션을 켜두면 좌/우 1장씩 깔끔하게 자동 분할 등록됩니다.</li>
+          <li><strong>책등 굴곡 평탄화 (Curve Dewarping):</strong> 펼친 책의 글자 굴곡을 텍스트 라인 궤적 기반으로 분석하여 반듯한 수평으로 펴줍니다.</li>
+          <li><strong>스캔 룩 필터 선택:</strong> 선명한 흑백(B&W), 그레이스케일, 컬러 스캔 중 용도에 맞는 필터를 선택합니다. (책 안쪽 책등 그림자 띠는 자동으로 흰색 롤오프 처리됩니다)</li>
+          <li><strong>스캔 영역 조절:</strong> <code>✨ 스마트 자동</code> 버튼으로 본문 영역을 자동 감지하거나 사변 슬라이더로 영역을 맞춘 뒤 <strong>[현재 영역 전체 페이지 일괄 적용]</strong>을 클릭합니다.</li>
+          <li><strong>내보내기:</strong> <strong>[A4 PDF 저장]</strong>으로 전체 페이지가 병합된 표준 문서를 만들거나 <strong>[고화질 ZIP 다운로드]</strong>로 개별 이미지를 압축 다운로드합니다.</li>
+        </ol>
+      </div>
+
+      <h3>1. 자가 적응형 굴곡 평탄화 (Self-Adaptive Dewarping)</h3>
+      <ul>
+        <li><strong>텍스트 라인 중심선 분석:</strong> 24개 구간 중심선 다중 샘플링 및 Catmull-Rom 스플라인 연속 보간 곡선을 통해 책의 언덕형, 처짐형, 책등 말림 곡면을 수학적으로 정밀 계산합니다.</li>
+        <li><strong>타겟 레벨링 & 1.25배 보정 부스트:</strong> 절대 수평면을 기준으로 잔여 굴곡과 회전 기울기를 완벽하게 보정하여 마치 스캐너 유리판에 밀착시킨 듯 평평하게 펴줍니다.</li>
+      </ul>
+
+      <h3>2. 전문 스캔 룩 3대 필터 모드</h3>
+      <ul>
+        <li><strong>선명한 흑백 (B&W):</strong> 누런 종이 음영을 완전히 지우고 글자 획을 짙고 또렷하게 살립니다. 3×3 미디언 필터가 내장되어 종이 표면의 자잘한 점 노이즈(스펙클)를 말끔히 지워줍니다.</li>
+        <li><strong>그레이스케일:</strong> 명암의 계조와 음영 단계를 부드럽게 유지하여 연필 스케치, 일러스트, 도면, 악보 등의 질감을 보존합니다.</li>
+        <li><strong>컬러 스캔:</strong> 잡지, 교재, 사진이 포함된 문서에서 색상 정보를 생생하게 보존하면서 바탕 종이 그림자만 스마트하게 제거합니다.</li>
+        <li><strong>외곽 책등 그림자 띠 감지 & 롤오프 화이트닝:</strong> 책 안쪽 접힘부에 생기는 짙은 검은색 음영 띠를 감지하여 자연스러운 흰색 바탕으로 자동 전환합니다.</li>
+      </ul>
+
+      <h3>3. 스마트 자동 크롭 & 60fps 무지연 가이드 박스</h3>
+      <ul>
+        <li><strong>✨ 스마트 자동 영역 분석:</strong> 문서 본문 블록을 지능적으로 감지하여 불필요한 책상 배경이나 외곽 여백을 원클릭으로 절단합니다.</li>
+        <li><strong>무지연 실시간 가이드:</strong> 상·하·좌·우 슬라이더 조작 시 스피너 렉 없이 60fps로 노란 가이드 박스만 부드럽게 이동합니다. 사변을 모두 맞춘 후 <strong>[현재 영역 전체 페이지 일괄 적용]</strong>을 클릭하여 쾌적하게 일괄 반영합니다.</li>
+      </ul>
+
+      <h3>4. 뷰포트 내비게이션 & 원본 비교</h3>
+      <ul>
+        <li><strong>자유로운 화면 이동 (Pan):</strong> 마우스 좌클릭, 우클릭, 휠 클릭 중 편한 방법으로 캔버스를 잡고 드래그하면 화면이 자유롭게 이동합니다.</li>
+        <li><strong>부드러운 마우스 휠 줌:</strong> 마우스 휠을 굴려 커서 위치를 중심으로 12%부터 350%까지 자유롭게 확대/축소할 수 있습니다.</li>
+        <li><strong>실시간 원본 비교:</strong> <span class="kbd">Space</span> 키를 누르고 있는 동안 원본 사진이 표시되어 스캔 보정 전/후를 손쉽게 비교할 수 있습니다.</li>
       </ul>
     </section>
 
@@ -917,6 +1017,10 @@
               <td>현재 편집 중인 투명 배경 이미지를 클립보드로 복사하기</td>
             </tr>
             <tr>
+              <td><span class="kbd">Ctrl</span> + <span class="kbd">D</span></td>
+              <td>누끼 스튜디오에서 선택한 벡터 도형/화살표/텍스트 개체 복제하기</td>
+            </tr>
+            <tr>
               <td><span class="kbd">Ctrl</span> + <span class="kbd">Z</span></td>
               <td>이전 작업 단계로 되돌리기 (Undo)</td>
             </tr>
@@ -924,6 +1028,18 @@
               <td><span class="kbd">Ctrl</span> + <span class="kbd">Y</span> / <span class="kbd">Ctrl</span> + <span
                   class="kbd">Shift</span> + <span class="kbd">Z</span></td>
               <td>되돌린 작업 다시 실행하기 (Redo)</td>
+            </tr>
+            <tr>
+              <td><span class="kbd">Space</span> (누르고 있기)</td>
+              <td>스캔 스튜디오에서 필터 스캔본과 원본 사진을 실시간 분할/토글 비교하기</td>
+            </tr>
+            <tr>
+              <td><span class="kbd">Space</span> + 드래그 / 마우스 좌·우·휠 드래그</td>
+              <td>캔버스 화면을 자유롭게 이동 (Pan)</td>
+            </tr>
+            <tr>
+              <td>마우스 휠 스크롤</td>
+              <td>마우스 커서 위치를 중심으로 캔버스 확대 / 축소 (Zoom In/Out)</td>
             </tr>
             <tr>
               <td><span class="kbd">[</span> / <span class="kbd">]</span></td>
