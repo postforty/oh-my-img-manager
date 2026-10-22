@@ -95,6 +95,11 @@
               <span class="mode-desc">삽화/사진 색상 유지 & 그림자만 제거</span>
             </button>
           </div>
+
+          <button id="btnApplyAll" class="btn btn-outline btn-full btn-small" style="margin-top: 10px;" title="현재 선택된 필터 모드를 전체 페이지에 일괄 적용">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            <span>현재 필터 전체 페이지 일괄 적용</span>
+          </button>
         </section>
 
         <!-- Smart Auto Scan Options -->
@@ -232,16 +237,8 @@
           </div>
         </section>
 
-        <!-- Batch & Export Actions -->
+        <!-- Export Actions -->
         <section class="control-section export-section">
-          <button id="btnApplyAll" class="btn btn-outline btn-full" title="현재 선택된 필터 모드를 전체 페이지에 일괄 적용">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-            </svg>
-            <span>전체 페이지 필터 일괄 적용</span>
-          </button>
-
           <div class="export-btn-group">
             <button id="btnExportPdf" class="btn btn-primary btn-full btn-export" disabled>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -283,9 +280,9 @@
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
               <span>원본 비교 (Space)</span>
             </button>
-            <button id="btnToggleCropGuide" class="btn btn-outline btn-sm btn-crop-guide" title="스캔 영역 가이드 박스 표시 및 마우스 드래그 조절">
+            <button id="btnToggleCropGuide" class="btn btn-outline btn-sm btn-crop-guide" title="스캔 영역 가이드 박스 표시/숨김 (영역 조절은 좌측 슬라이더 이용)">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
-              <span>영역 가이드 조절</span>
+              <span>영역 가이드 보기</span>
             </button>
             <span class="crop-hint-text" id="viewportHintText">💡 '전체 (100%)' 유지로 페이지 번호와 여백이 안전하게 보존됩니다</span>
           </div>
@@ -304,36 +301,65 @@
 
         <!-- Canvas Container -->
         <div class="viewport-canvas-container" id="canvasContainer">
-          <!-- Dropzone State (When no image is loaded) -->
-          <div class="dropzone-empty" id="dropzoneEmpty">
-            <div class="dropzone-box" id="dropzoneBox">
-              <div class="drop-icon-anim">
-                <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                  <line x1="8" y1="6" x2="16" y2="6"></line>
-                  <line x1="8" y1="10" x2="14" y2="10"></line>
+          <!-- Dropzone State (Consistent with Workspace & Remover Studio) -->
+          <div class="drop-zone" id="dropzoneEmpty">
+            <div class="drop-icon">
+              <svg class="drop-icon-svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                <line x1="8" y1="6" x2="16" y2="6"></line>
+                <line x1="8" y1="10" x2="14" y2="10"></line>
+              </svg>
+            </div>
+            <h3>도서 및 문서 사진을 이곳으로 드래그 앤 드롭하세요</h3>
+            <p>스마트폰으로 비스듬히 찍은 책 사진도 자동으로 좌/우 2페이지로 분할하고 평평하고 깨끗한 스캔본으로 변환합니다</p>
+            <div class="drop-actions">
+              <label class="btn btn-primary file-btn">
+                <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-              </div>
-              <h3>도서 및 문서 사진을 여기에 끌어다 놓으세요</h3>
-              <p>스마트폰으로 비스듬히 찍은 책 사진도 자동으로 좌/우 2페이지로 분할하고 평평하고 깨끗한 스캔본으로 변환합니다.</p>
-              <div class="dropzone-actions">
-                <button id="btnSelectFiles" class="btn btn-primary">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  <span>사진 파일 선택 (여러 장 가능)</span>
-                </button>
-                <input type="file" id="fileInput" accept="image/*" multiple hidden />
-              </div>
-              <div class="privacy-note">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <span>사진 파일 선택</span>
+                <input type="file" id="fileInput" accept="image/*" multiple />
+              </label>
+              <label class="btn btn-outline file-btn">
+                <svg class="btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>폴더 선택</span>
+                <input type="file" id="folderInput" webkitdirectory directory multiple />
+              </label>
+            </div>
+            <div class="drop-hint-tags">
+              <span class="hint-tag">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                </svg>
+                <span>온디바이스 OpenCV 고속 스캔</span>
+              </span>
+              <span class="hint-tag">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                  <line x1="12" y1="4" x2="12" y2="20" stroke-dasharray="2 2"></line>
+                </svg>
+                <span>펼친 양면 자동 2장 분할</span>
+              </span>
+              <span class="hint-tag">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <span>모든 사진은 외부 서버로 전송되지 않고 브라우저 내에서 안전하게 처리됩니다.</span>
-              </div>
+                <span>100% 로컬 프라이버시</span>
+              </span>
+              <span class="hint-tag">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
+                  <path d="M9 18h6"></path>
+                  <path d="M10 22h4"></path>
+                </svg>
+                <span>Ctrl + V 붙여넣기</span>
+              </span>
             </div>
           </div>
 

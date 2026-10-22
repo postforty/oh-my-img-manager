@@ -597,85 +597,121 @@ body.light-theme .theme-moon-icon { display: block; color: var(--text-secondary)
   position: relative;
   overflow: auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-/* Empty Dropzone State */
-.dropzone-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  padding: 30px;
-}
-
-.dropzone-box {
-  max-width: 540px;
-  width: 100%;
-  border: 2px dashed var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 40px 24px;
+/* Empty Dropzone State (Consistent with Workspace & Remover Studio) */
+.drop-zone {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
   text-align: center;
-  background-color: rgba(23, 25, 35, 0.4);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  margin: 20px;
+  background-color: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
+  width: calc(100% - 40px);
+  height: calc(100% - 40px);
+  box-sizing: border-box;
 }
 
-.dropzone-box.drag-over {
+.drop-zone.dragover,
+.drop-zone.drag-over {
   border-color: var(--accent-scanner);
   background-color: var(--accent-scanner-subtle);
-  transform: scale(1.01);
+  transform: scale(0.995);
+  box-shadow: 0 0 0 3px var(--accent-scanner-glow);
 }
 
-.drop-icon-anim {
+.drop-icon-svg {
   color: var(--accent-scanner);
   margin-bottom: 16px;
-  animation: floatIcon 3s ease-in-out infinite;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 8px var(--accent-scanner-glow));
 }
 
-@keyframes floatIcon {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
-.dropzone-box h3 {
-  font-size: 17px;
-  font-weight: 700;
+.drop-zone h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
-.dropzone-box p {
-  font-size: 13px;
+.drop-zone p {
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 20px;
+  line-height: 1.6;
+  margin-bottom: 22px;
+  max-width: 520px;
 }
 
-.privacy-note {
+.drop-actions {
   display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.file-btn {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-btn input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.drop-hint-tags {
+  display: flex;
+  gap: 8px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 600px;
+}
+
+.hint-tag {
+  font-size: 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  padding: 5px 12px;
+  border-radius: 20px;
+  color: var(--text-muted);
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 20px;
+}
+
+.hint-tag svg {
+  color: var(--accent-scanner);
+  flex-shrink: 0;
 }
 
 /* Active Stage & Canvas Wrapper */
 .canvas-stage {
-  min-width: 100%;
-  min-height: 100%;
-  width: max-content;
-  height: max-content;
-  padding: 30px;
+  margin: auto;
+  padding: 50px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .canvas-wrapper {

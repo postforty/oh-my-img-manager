@@ -34,8 +34,9 @@ const state = {
 // DOM Elements
 // -------------------------------------------------------------
 const dropzoneEmpty = document.getElementById("dropzoneEmpty");
-const dropzoneBox = document.getElementById("dropzoneBox");
+const dropzoneBox = document.getElementById("dropzoneBox") || dropzoneEmpty;
 const fileInput = document.getElementById("fileInput");
+const folderInput = document.getElementById("folderInput");
 const btnSelectFiles = document.getElementById("btnSelectFiles");
 const btnAddMoreFiles = document.getElementById("btnAddMoreFiles");
 const btnClearAll = document.getElementById("btnClearAll");
@@ -216,8 +217,13 @@ btnOpenCropper.addEventListener("click", () => {
 // -------------------------------------------------------------
 // Automated Upload & Book Processing Pipeline
 // -------------------------------------------------------------
-btnSelectFiles.addEventListener("click", () => fileInput.click());
-btnAddMoreFiles.addEventListener("click", () => fileInput.click());
+if (btnSelectFiles) {
+  btnSelectFiles.addEventListener("click", () => fileInput.click());
+}
+if (btnAddMoreFiles) {
+  btnAddMoreFiles.addEventListener("click", () => fileInput.click());
+}
+
 fileInput.addEventListener("change", (e) => {
   if (e.target.files && e.target.files.length > 0) {
     handleFiles(Array.from(e.target.files));
@@ -225,18 +231,55 @@ fileInput.addEventListener("change", (e) => {
   }
 });
 
+if (folderInput) {
+  folderInput.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(Array.from(e.target.files));
+      folderInput.value = "";
+    }
+  });
+}
+
+// Clipboard Paste (Ctrl + V)
+document.addEventListener("paste", (e) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName : "";
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(activeTag)) return;
+
+  const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+  if (!items) return;
+
+  const files = [];
+  for (const item of items) {
+    if (item.type.indexOf("image") !== -1) {
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+  }
+
+  if (files.length > 0) {
+    handleFiles(files);
+    showToast("클립보드 이미지를 불러왔습니다!");
+  }
+});
+
 // Drag and drop
 ["dragenter", "dragover"].forEach((eventName) => {
   window.addEventListener(eventName, (e) => {
     e.preventDefault();
-    dropzoneBox.classList.add("drag-over");
+    if (dropzoneEmpty) {
+      dropzoneEmpty.classList.add("dragover");
+      dropzoneEmpty.classList.add("drag-over");
+    }
   });
 });
 
 ["dragleave", "drop"].forEach((eventName) => {
   window.addEventListener(eventName, (e) => {
     e.preventDefault();
-    dropzoneBox.classList.remove("drag-over");
+    if (dropzoneEmpty) {
+      dropzoneEmpty.classList.remove("dragover");
+      dropzoneEmpty.classList.remove("drag-over");
+    }
   });
 });
 
@@ -352,6 +395,8 @@ async function splitAndProcessSpread(rawImg, originalName) {
     name: `${baseName} (좌)`,
     rawImage: leftRawCanvas,
     scanCanvas: leftCanvas,
+    fullFilteredCanvas: leftCanvas,
+    fullFilteredMode: leftOptions.mode,
     width: leftCanvas.width,
     height: leftCanvas.height,
     options: leftOptions,
@@ -380,6 +425,8 @@ async function splitAndProcessSpread(rawImg, originalName) {
     name: `${baseName} (우)`,
     rawImage: rightRawCanvas,
     scanCanvas: rightCanvas,
+    fullFilteredCanvas: rightCanvas,
+    fullFilteredMode: rightOptions.mode,
     width: rightCanvas.width,
     height: rightCanvas.height,
     options: rightOptions,
@@ -415,6 +462,8 @@ async function processSinglePage(rawImg, name) {
     name,
     rawImage: rawImg,
     scanCanvas,
+    fullFilteredCanvas: scanCanvas,
+    fullFilteredMode: state.options.mode,
     width: scanCanvas.width,
     height: scanCanvas.height,
     options: { ...state.options },
@@ -558,19 +607,31 @@ function renderCurrentPage(resetZoom = false) {
   const ctx = resultCanvas.getContext("2d");
 
   if (state.isCropGuideActive) {
-    // Show raw image with crop guide overlay
-    const source = page.rawImage;
-    if (!source) return;
+    // Show full filtered preview (or raw image when comparing) with crop guide overlay
+    const baseImage = (state.isComparing ? page.rawImage : (page.fullFilteredCanvas || page.rawImage));
+    if (!baseImage) return;
 
-    resultCanvas.width = source.width;
-    resultCanvas.height = source.height;
+    resultCanvas.width = baseImage.width;
+    resultCanvas.height = baseImage.height;
     ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-    ctx.drawImage(source, 0, 0);
+    ctx.drawImage(baseImage, 0, 0);
 
-    drawCropGuideOverlay(ctx, source.width, source.height, page.options.cropRatios);
+    drawCropGuideOverlay(ctx, baseImage.width, baseImage.height, page.options.cropRatios);
 
     if (btnToggleCropGuide) btnToggleCropGuide.classList.add("active");
-    footerDimensions.textContent = `영역 조절 가이드: ${source.width} × ${source.height} px (슬라이더 또는 드래그로 조절)`;
+    const modeName = page.options.mode === "bw" ? "흑백" : page.options.mode === "grayscale" ? "그레이" : "컬러";
+    footerDimensions.textContent = state.isComparing
+      ? `영역 가이드 (원본 사진): ${baseImage.width} × ${baseImage.height} px (Space: 필터 화면 복귀)`
+      : `영역 가이드 (${modeName} 필터 적용본): ${baseImage.width} × ${baseImage.height} px (좌측 슬라이더로 조절 | Space: 원본 비교)`;
+
+    // Lazy load full filtered canvas if not yet cached for current mode
+    if (!state.isComparing && (!page.fullFilteredCanvas || page.fullFilteredMode !== page.options.mode)) {
+      ensurePageFullFiltered(page).then((canvas) => {
+        if (canvas && state.isCropGuideActive && state.pages[state.activeIndex] === page && !state.isComparing) {
+          renderCurrentPage(false);
+        }
+      });
+    }
   } else {
     // Clean processed scan (or raw comparison)
     if (btnToggleCropGuide) btnToggleCropGuide.classList.remove("active");
@@ -592,6 +653,7 @@ function renderCurrentPage(resetZoom = false) {
   if (resetZoom) {
     fitZoomToContainer();
   }
+  updateCanvasCursor();
 }
 
 function showProcessing(text) {
@@ -610,12 +672,19 @@ function hideProcessing() {
 // -------------------------------------------------------------
 function fitZoomToContainer() {
   if (state.activeIndex < 0) return;
-  const containerW = canvasContainer.clientWidth - 50;
-  const containerH = canvasContainer.clientHeight - 50;
   const page = state.pages[state.activeIndex];
+  // 50px padding on each side = 100px total + 20px buffer
+  const paddingOffset = 120;
+  const containerW = Math.max(100, canvasContainer.clientWidth - paddingOffset);
+  const containerH = Math.max(100, canvasContainer.clientHeight - paddingOffset);
 
   const scale = Math.min(1.0, containerW / page.width, containerH / page.height);
   setZoom(Math.max(0.12, scale));
+
+  requestAnimationFrame(() => {
+    canvasContainer.scrollTop = 0;
+    canvasContainer.scrollLeft = Math.max(0, (canvasContainer.scrollWidth - canvasContainer.clientWidth) / 2);
+  });
 }
 
 function setZoom(val, pivotX = null, pivotY = null) {
@@ -637,8 +706,8 @@ function setZoom(val, pivotX = null, pivotY = null) {
     // Anchor scroll to pivot position
     if (pivotX !== null && pivotY !== null && oldZoom > 0) {
       const scaleRatio = newZoom / oldZoom;
-      canvasContainer.scrollLeft = Math.round((canvasContainer.scrollLeft + pivotX) * scaleRatio - pivotX);
-      canvasContainer.scrollTop = Math.round((canvasContainer.scrollTop + pivotY) * scaleRatio - pivotY);
+      canvasContainer.scrollLeft = Math.max(0, Math.round((canvasContainer.scrollLeft + pivotX) * scaleRatio - pivotX));
+      canvasContainer.scrollTop = Math.max(0, Math.round((canvasContainer.scrollTop + pivotY) * scaleRatio - pivotY));
     }
   }
 }
@@ -656,12 +725,23 @@ canvasContainer.addEventListener("wheel", (e) => {
   setZoom(state.zoom * factor, pivotX, pivotY);
 }, { passive: false });
 
-// Pan via Middle-click, Right-click, or Space+Drag
+// Pan via Mouse Drag (Left, Middle, Right click, or Space+Drag)
 let isSpacePressed = false;
 
+function updateCanvasCursor() {
+  if (!canvasContainer) return;
+  if (state.pages.length === 0 || state.activeIndex < 0) {
+    canvasContainer.style.cursor = "default";
+    return;
+  }
+  canvasContainer.style.cursor = state.isPanning ? "grabbing" : "grab";
+}
+
 canvasContainer.addEventListener("mousedown", (e) => {
-  const isPanTrigger = e.button === 1 || e.button === 2 || (e.button === 0 && isSpacePressed);
-  if (isPanTrigger) {
+  if (state.activeIndex < 0) return;
+
+  // Dedicated Pan: Left click (0), Middle click (1), or Right click (2) all pan the viewport
+  if (e.button === 0 || e.button === 1 || e.button === 2) {
     state.isPanning = true;
     state.panStart = {
       x: e.clientX,
@@ -671,27 +751,11 @@ canvasContainer.addEventListener("mousedown", (e) => {
     };
     canvasContainer.style.cursor = "grabbing";
     e.preventDefault();
-    return;
-  }
-
-  // Left click when Crop Guide is active -> Start drag-box selection
-  if (e.button === 0 && state.isCropGuideActive && state.activeIndex >= 0) {
-    const rect = resultCanvas.getBoundingClientRect();
-    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-      state.isCropDragging = true;
-      const scaleX = resultCanvas.width / rect.width;
-      const scaleY = resultCanvas.height / rect.height;
-      state.cropDragStart = {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-      };
-      e.preventDefault();
-    }
   }
 });
 
 canvasContainer.addEventListener("contextmenu", (e) => {
-  if (state.isPanning || isSpacePressed) {
+  if (state.isPanning || isSpacePressed || state.activeIndex >= 0) {
     e.preventDefault();
   }
 });
@@ -702,50 +766,13 @@ window.addEventListener("mousemove", (e) => {
     const dy = e.clientY - state.panStart.y;
     canvasContainer.scrollLeft = state.panStart.scrollLeft - dx;
     canvasContainer.scrollTop = state.panStart.scrollTop - dy;
-    return;
-  }
-
-  if (state.isCropDragging && state.activeIndex >= 0) {
-    const page = state.pages[state.activeIndex];
-    const rect = resultCanvas.getBoundingClientRect();
-    const scaleX = resultCanvas.width / rect.width;
-    const scaleY = resultCanvas.height / rect.height;
-
-    const curX = Math.max(0, Math.min(resultCanvas.width, (e.clientX - rect.left) * scaleX));
-    const curY = Math.max(0, Math.min(resultCanvas.height, (e.clientY - rect.top) * scaleY));
-
-    const minX = Math.min(state.cropDragStart.x, curX);
-    const maxX = Math.max(state.cropDragStart.x, curX);
-    const minY = Math.min(state.cropDragStart.y, curY);
-    const maxY = Math.max(state.cropDragStart.y, curY);
-
-    if (maxX - minX > 20 && maxY - minY > 20) {
-      page.options.cropRatios = {
-        left: minX / resultCanvas.width,
-        right: maxX / resultCanvas.width,
-        top: minY / resultCanvas.height,
-        bottom: maxY / resultCanvas.height
-      };
-      updateCropSlidersUI(page.options.cropRatios);
-      renderCurrentPage(false);
-    }
   }
 });
 
-window.addEventListener("mouseup", async () => {
+window.addEventListener("mouseup", () => {
   if (state.isPanning) {
     state.isPanning = false;
-    canvasContainer.style.cursor = isSpacePressed ? "grab" : "";
-  }
-
-  if (state.isCropDragging && state.activeIndex >= 0) {
-    state.isCropDragging = false;
-    const page = state.pages[state.activeIndex];
-    showProcessing("스캔 영역 재적용 중...");
-    await reprocessPageFilter(page);
-    hideProcessing();
-    renderCurrentPage(false);
-    renderFilmstrip();
+    updateCanvasCursor();
   }
 });
 
@@ -780,7 +807,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Space" && !e.repeat && state.activeIndex >= 0) {
     e.preventDefault();
     isSpacePressed = true;
-    if (canvasContainer) canvasContainer.style.cursor = "grab";
+    updateCanvasCursor();
     state.isComparing = true;
     if (btnHoldCompare) btnHoldCompare.classList.add("active");
     renderCurrentPage(false);
@@ -799,7 +826,7 @@ window.addEventListener("keyup", (e) => {
 
   if (e.code === "Space") {
     isSpacePressed = false;
-    if (!state.isPanning && canvasContainer) canvasContainer.style.cursor = "";
+    updateCanvasCursor();
     if (state.isComparing) {
       state.isComparing = false;
       if (btnHoldCompare) btnHoldCompare.classList.remove("active");
@@ -826,9 +853,16 @@ window.addEventListener("keyup", (e) => {
 
     [btnModeBw, btnModeGray, btnModeColor].forEach((b) => b.classList.toggle("active", b === btn));
 
+    // Invalidate cached full filtered canvas for this page
+    state.pages[state.activeIndex].fullFilteredCanvas = null;
+    state.pages[state.activeIndex].fullFilteredMode = null;
+
     // Re-enhance active page
     showProcessing("스캔 필터 적용 중...");
     await reprocessPageFilter(state.pages[state.activeIndex]);
+    if (state.isCropGuideActive) {
+      await ensurePageFullFiltered(state.pages[state.activeIndex]);
+    }
     hideProcessing();
     renderCurrentPage(false);
     renderFilmstrip();
@@ -857,6 +891,57 @@ async function reprocessPageFilter(page) {
   page.width = scanCanvas.width;
   page.height = scanCanvas.height;
   page.thumbUrl = createThumbnail(scanCanvas);
+
+  // If crop ratios is full 100%, update fullFilteredCanvas cache as well
+  const r = page.options.cropRatios;
+  if (!r || (r.top === 0 && r.bottom === 1 && r.left === 0 && r.right === 1)) {
+    page.fullFilteredCanvas = scanCanvas;
+    page.fullFilteredMode = page.options.mode;
+  }
+}
+
+/**
+ * Ensures a full-resolution filtered canvas (crop 0%~100%) exists for crop guide overlay.
+ */
+async function ensurePageFullFiltered(page) {
+  if (!page || !page.rawImage) return null;
+  if (page.fullFilteredCanvas && page.fullFilteredMode === page.options.mode) {
+    return page.fullFilteredCanvas;
+  }
+
+  const r = page.options.cropRatios;
+  const isFull = !r || (r.top === 0 && r.bottom === 1 && r.left === 0 && r.right === 1);
+  if (isFull && page.scanCanvas) {
+    page.fullFilteredCanvas = page.scanCanvas;
+    page.fullFilteredMode = page.options.mode;
+    return page.fullFilteredCanvas;
+  }
+
+  const offCanvas = document.createElement("canvas");
+  offCanvas.width = page.rawImage.width || page.rawImage.naturalWidth;
+  offCanvas.height = page.rawImage.height || page.rawImage.naturalHeight;
+  const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(page.rawImage, 0, 0);
+  const imgData = ctx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+
+  const fullOptions = {
+    ...page.options,
+    cropRatios: { top: 0, bottom: 1.0, left: 0, right: 1.0 }
+  };
+
+  const res = await sendWorkerRequest("PROCESS_AUTO_PAGE", {
+    imageData: imgData,
+    options: fullOptions
+  }, [imgData.data.buffer]);
+
+  const fCanvas = document.createElement("canvas");
+  fCanvas.width = res.imageData.width;
+  fCanvas.height = res.imageData.height;
+  fCanvas.getContext("2d").putImageData(res.imageData, 0, 0);
+
+  page.fullFilteredCanvas = fCanvas;
+  page.fullFilteredMode = page.options.mode;
+  return fCanvas;
 }
 
 // -------------------------------------------------------------
@@ -869,9 +954,26 @@ const CROP_PRESETS = {
 };
 
 if (btnToggleCropGuide) {
-  btnToggleCropGuide.addEventListener("click", () => {
+  btnToggleCropGuide.addEventListener("click", async () => {
     state.isCropGuideActive = !state.isCropGuideActive;
-    renderCurrentPage(false);
+    if (state.isCropGuideActive && state.activeIndex >= 0) {
+      const page = state.pages[state.activeIndex];
+      if (!page.fullFilteredCanvas || page.fullFilteredMode !== page.options.mode) {
+        showProcessing("영역 조절 화면 준비 중...");
+        await ensurePageFullFiltered(page);
+        hideProcessing();
+      }
+      renderCurrentPage(false);
+    } else if (!state.isCropGuideActive && state.activeIndex >= 0) {
+      const page = state.pages[state.activeIndex];
+      showProcessing("스캔 영역 적용 중...");
+      await reprocessPageFilter(page);
+      hideProcessing();
+      renderCurrentPage(false);
+      renderFilmstrip();
+    } else {
+      renderCurrentPage(false);
+    }
   });
 }
 
@@ -889,11 +991,9 @@ if (btnToggleCropGuide) {
 
     updateCropSlidersUI(ratios, presetKey);
 
-    showProcessing("스캔 영역 재적용 중...");
-    await reprocessPageFilter(page);
-    hideProcessing();
+    // 슬라이더 및 가이드 박스만 즉시 표시 (스피너 없이 부드러운 전환)
+    state.isCropGuideActive = true;
     renderCurrentPage(false);
-    renderFilmstrip();
   });
 });
 
@@ -920,10 +1020,9 @@ if (btnCropAuto) {
         state.options.cropRatios = { ...res.ratios };
         updateCropSlidersUI(res.ratios, "auto");
 
-        showProcessing("스캔 영역 재적용 중...");
-        await reprocessPageFilter(page);
+        // 감지된 사변 가이드 박스 즉시 표시 (추가 스피너 없이 사용자가 확인 및 미세조정 가능)
+        state.isCropGuideActive = true;
         renderCurrentPage(false);
-        renderFilmstrip();
       }
     } catch (err) {
       console.error("Smart Auto Crop error:", err);
@@ -953,30 +1052,14 @@ function handleCropSliderInput() {
 
   [btnCropFull, btnCropAuto, btnCropMargin, btnCropText].forEach((b) => b && b.classList.remove("active"));
 
-  // Show crop guide live so user sees boundaries clearly
+  // 슬라이더 드래그 중에는 60fps로 가이드 라인만 부드럽게 실시간 표시 (스피너 없음)
   state.isCropGuideActive = true;
   renderCurrentPage(false);
-}
-
-let cropDebounceTimer = null;
-function handleCropSliderChange() {
-  if (state.activeIndex < 0) return;
-  const page = state.pages[state.activeIndex];
-
-  clearTimeout(cropDebounceTimer);
-  cropDebounceTimer = setTimeout(async () => {
-    showProcessing("스캔 영역 재적용 중...");
-    await reprocessPageFilter(page);
-    hideProcessing();
-    renderCurrentPage(false);
-    renderFilmstrip();
-  }, 200);
 }
 
 [rangeCropTop, rangeCropBottom, rangeCropLeft, rangeCropRight].forEach((slider) => {
   if (!slider) return;
   slider.addEventListener("input", handleCropSliderInput);
-  slider.addEventListener("change", handleCropSliderChange);
 });
 
 if (btnApplyCropAll) {
@@ -989,9 +1072,12 @@ if (btnApplyCropAll) {
       page.options.cropRatios = { ...currentRatios };
       await reprocessPageFilter(page);
     }
+    // 일괄 적용 완료 후 가이드 모드를 종료하고 잘려진 최종 고화질 스캔본 화면으로 복귀
+    state.isCropGuideActive = false;
     hideProcessing();
     renderCurrentPage(false);
     renderFilmstrip();
+    showToast(`모든 페이지에 현재 스캔 영역이 일괄 적용되었습니다.`);
   });
 }
 
@@ -1032,6 +1118,8 @@ async function rotateActivePage(deg) {
   page.scanCanvas = canvas;
   page.width = canvas.width;
   page.height = canvas.height;
+  page.fullFilteredCanvas = null;
+  page.fullFilteredMode = null;
   page.thumbUrl = createThumbnail(canvas);
 
   hideProcessing();
@@ -1070,7 +1158,13 @@ btnApplyAll.addEventListener("click", async () => {
   for (let i = 0; i < state.pages.length; i++) {
     processingStatusText.textContent = `전체 적용 중 (${i + 1}/${state.pages.length})...`;
     state.pages[i].options.mode = currentMode;
+    state.pages[i].fullFilteredCanvas = null;
+    state.pages[i].fullFilteredMode = null;
     await reprocessPageFilter(state.pages[i]);
+  }
+
+  if (state.isCropGuideActive && state.activeIndex >= 0) {
+    await ensurePageFullFiltered(state.pages[state.activeIndex]);
   }
 
   hideProcessing();
